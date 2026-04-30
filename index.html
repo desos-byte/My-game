@@ -1,38 +1,94 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Matter.js on CF Pages</title>
+    <title>Matter.js 无贴图拖拽</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; overflow: hidden; }
+        body { margin: 0; overflow: hidden; background: #fafafa; }
+        /* 确保 Canvas 在移动端也全屏且不响应系统缩放 */
+        canvas { display: block; touch-action: none; }
     </style>
 </head>
 <body>
-    <!-- 引入 Matter.js -->
+    <!-- 引入最新的 Matter.js 库 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
-    
     <script>
-        // 简易初始化
-        const { Engine, Render, Runner, Bodies, Composite } = Matter;
+        // 1. 解构必要的模块（包括 Mouse 和 MouseConstraint）
+        const { Engine, Render, Runner, Bodies, Composite, Mouse, MouseConstraint } = Matter;
 
+        // 2. 初始化引擎和渲染器
         const engine = Engine.create();
+        
         const render = Render.create({
             element: document.body,
             engine: engine,
-            options: { width: window.innerWidth, height: window.innerHeight }
+            options: {
+                width: window.innerWidth,
+                height: window.innerHeight,
+                wireframes: false, // 设置为 false 才能看到实心方块，而不是线框
+                background: '#fafafa'
+            }
         });
 
-        // 创建两个方块和一个地面
-        const boxA = Bodies.rectangle(400, 200, 80, 80);
-        const boxB = Bodies.rectangle(450, 50, 80, 80);
-        const ground = Bodies.rectangle(400, 610, 810, 60, { isStatic: true });
+        // --- 【新增：拖拽核心代码】 ---
+        
+        // A. 创建鼠标实例（告诉引擎 Canvas 的哪个位置对应鼠标）
+        const mouse = Mouse.create(render.canvas);
 
-        // 添加到世界
-        Composite.add(engine.world, [boxA, boxB, ground]);
+        // B. 创建鼠标约束（给物理引擎增加“抓取”功能）
+        const mouseConstraint = MouseConstraint.create(engine, {
+            mouse: mouse,
+            constraint: {
+                stiffness: 0.1, // 抓取的刚度，0.1 更“跟手”
+                render: {
+                    visible: false // 不显示拖动时的连接线
+                }
+            }
+        });
 
-        // 运行
+        // C. 将鼠标约束添加到物理世界
+        Composite.add(engine.world, mouseConstraint);
+
+        // D. 这一步至关重要：保持鼠标与渲染同步
+        render.mouse = mouse;
+
+        // --- 【结束拖拽代码】 ---
+
+        // 3. 创建纯色物体（无需贴图）
+        
+        // 创建三个方块，分别设置不同的颜色
+        const box1 = Bodies.rectangle(window.innerWidth / 2 - 100, 100, 80, 80, {
+            render: { fillStyle: '#e74c3c' } // 红色
+        });
+        const box2 = Bodies.rectangle(window.innerWidth / 2, 50, 80, 80, {
+            render: { fillStyle: '#2ecc71' } // 绿色
+        });
+        const box3 = Bodies.rectangle(window.innerWidth / 2 + 100, 0, 80, 80, {
+            render: { fillStyle: '#3498db' } // 蓝色
+        });
+
+        // 创建一个静止的地面
+        const ground = Bodies.rectangle(window.innerWidth / 2, window.innerHeight + 25, window.innerWidth, 60, { 
+            isStatic: true, // 静止不动
+            render: { fillStyle: '#2c3e50' } // 深蓝色
+        });
+
+        // 4. 将物体添加到物理世界
+        Composite.add(engine.world, [box1, box2, box3, ground]);
+
+        // 5. 运行引擎和渲染器
         Render.run(render);
         const runner = Runner.create();
         Runner.run(runner, engine);
+
+        // 窗口大小调整时自动适配
+        window.addEventListener('resize', () => {
+            render.canvas.width = window.innerWidth;
+            render.canvas.height = window.innerHeight;
+            
+            // 同时更新地面的位置
+            Body.setPosition(ground, { x: window.innerWidth / 2, y: window.innerHeight + 25 });
+        });
     </script>
 </body>
 </html>
