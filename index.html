@@ -14,7 +14,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
         // 1. 解构必要的模块（包括 Mouse 和 MouseConstraint）
-        const { Engine, Render, Runner, Bodies, Composite, Mouse, MouseConstraint, Body, Events } = Matter;
+        const { Engine, Render, Runner, Bodies, Composite, Mouse, MouseConstraint, Body, Query } = Matter;
 
         // 2. 初始化引擎和渲染器
         const engine = Engine.create();
@@ -89,26 +89,27 @@ Composite.add(engine.world, [ground, ceiling, leftWall, rightWall]);
         Composite.add(engine.world, [box1, box2, box3, ground]);
 
         // 监听鼠标点击/触摸事件
-// --- 修复后的点击生成代码 ---
+        // 2. 使用原生监听，但增加物理检测
+render.canvas.addEventListener('mousedown', (event) => {
+    // 将鼠标点击的屏幕坐标转换为当前画布的坐标
+    const mousePosition = {
+        x: event.clientX,
+        y: event.clientY
+    };
 
-// 使用 Matter.Events 来监听鼠标约束的起动
-Matter.Events.on(mouseConstraint, 'mousedown', function(event) {
-    // 获取当前鼠标抓取的物体
-    const grabbedBody = mouseConstraint.body;
+    // 【关键】检查点击的位置是否有任何物理身体（除了地面和墙）
+    // 这里的 engine.world.bodies 是所有的物体列表
+    const bodiesUnderMouse = Query.point(engine.world.bodies, mousePosition);
 
-    // 如果点击时，鼠标下面没有物体 (grabbedBody 为空)
-    if (!grabbedBody) {
-        const mousePosition = event.mouse.position;
-        
-        // 创建新方块
+    // 过滤掉地面和墙（如果有的话），或者简单判断：如果点的不是任何东西
+    // 只有当点击的位置没有任何物体时，才创建新方块
+    if (bodiesUnderMouse.length === 0) {
         const size = 40 + Math.random() * 40;
         const newBox = Bodies.rectangle(mousePosition.x, mousePosition.y, size, size, {
             render: {
                 fillStyle: '#' + Math.floor(Math.random()*16777215).toString(16)
             }
         });
-
-        // 添加到世界
         Composite.add(engine.world, newBox);
     }
 });
