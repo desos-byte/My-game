@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Matter.js 无贴图拖拽</title>
+    <title>welcome!</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
         body { margin: 0; overflow: hidden; background: #fafafa; }
@@ -67,11 +67,23 @@
             render: { fillStyle: '#3498db' } // 蓝色
         });
 
-        // 创建一个静止的地面
-        const ground = Bodies.rectangle(window.innerWidth / 2, window.innerHeight + 25, window.innerWidth, 60, { 
-            isStatic: true, // 静止不动
-            render: { fillStyle: '#2c3e50' } // 深蓝色
-        });
+        // 设置墙壁的厚度
+const wallThickness = 60; 
+
+// 1. 地面 (底部)
+const ground = Bodies.rectangle(window.innerWidth / 2, window.innerHeight + wallThickness / 2, window.innerWidth, wallThickness, { isStatic: true });
+
+// 2. 天花板 (顶部)
+const ceiling = Bodies.rectangle(window.innerWidth / 2, -wallThickness / 2, window.innerWidth, wallThickness, { isStatic: true });
+
+// 3. 左侧墙
+const leftWall = Bodies.rectangle(-wallThickness / 2, window.innerHeight / 2, wallThickness, window.innerHeight, { isStatic: true });
+
+// 4. 右侧墙
+const rightWall = Bodies.rectangle(window.innerWidth + wallThickness / 2, window.innerHeight / 2, wallThickness, window.innerHeight, { isStatic: true });
+
+// 将四面墙全部添加到世界中
+Composite.add(engine.world, [ground, ceiling, leftWall, rightWall]);
 
         // 4. 将物体添加到物理世界
         Composite.add(engine.world, [box1, box2, box3, ground]);
@@ -89,6 +101,19 @@
             // 同时更新地面的位置
             Body.setPosition(ground, { x: window.innerWidth / 2, y: window.innerHeight + 25 });
         });
+
+        window.addEventListener('resize', () => {
+    // 更新渲染器大小
+    render.canvas.width = window.innerWidth;
+    render.canvas.height = window.innerHeight;
+
+    // 更新四面墙的位置，确保它们依然紧贴边缘
+    const { Body } = Matter;
+    Body.setPosition(ground, { x: window.innerWidth / 2, y: window.innerHeight + wallThickness / 2 });
+    Body.setPosition(ceiling, { x: window.innerWidth / 2, y: -wallThickness / 2 });
+    Body.setPosition(leftWall, { x: -wallThickness / 2, y: window.innerHeight / 2 });
+    Body.setPosition(rightWall, { x: window.innerWidth + wallThickness / 2, y: window.innerHeight / 2 });
+});
     </script>
 </body>
 </html>
