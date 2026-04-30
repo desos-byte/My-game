@@ -4,73 +4,104 @@
     <title>welcome!</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; overflow: hidden; background: #edf5f9; }
-        canvas { display: block; touch-action: none; }
+        /* 基础页面设置 */
+body { 
+    margin: 0; 
+    overflow: hidden; 
+    background: #edf5f9; 
+}
 
-        /* 弹窗背后的遮罩层 */
-        #custom-modal {
-            display: none; /* 默认隐藏 */
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 9999;
-        }
+canvas { 
+    display: block; 
+    touch-action: none; 
+}
 
-        /* 弹窗主体样式 */
-        /* 弹窗主体样式 */
+/* 1. 遮罩层：设为完全透明，且不挡住下方的鼠标点击 */
+#custom-modal {
+    display: none; 
+    position: fixed;
+    top: 0; left: 0; 
+    width: 100%; height: 100%;
+    background: transparent; /* 背景不加深 */
+    z-index: 9999;
+    pointer-events: none;    /* 允许点击穿透到下层的方块 */
+}
+
+/* 2. 弹窗主体：高透明、直角、横版比例 */
 .modal-content {
+    display: flex;
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
+    pointer-events: auto;    /* 恢复弹窗自身的点击响应 */
     
-    /* --- 1. 透明与模糊效果 --- */
-    background: rgba(255, 255, 255, 0.7); 
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
+    /* 形状与比例 */
+    width: 450px;
+    aspect-ratio: 1.41 / 1;  /* A4横版比例 */
+    border-radius: 0;        /* 彻底直角 */
     
-    /* --- 2. 形状与比例控制 --- */
-    border-radius: 0;           /* 彻底直角 */
-    width: 450px;               /* 调大宽度以适应横版 */
-    aspect-ratio: 1.41 / 1;     /* 精确横版比例 */
+    /* 极高透明度与磨砂质感 */
+    background: rgba(255, 255, 255, 0.15); 
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     
-    /* --- 3. 字体设置：幼圆体方案 --- */
-    /* 优先调用苹果和系统的幼圆/圆体 */
+    /* 边框与阴影 */
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    
+    /* 布局与字体 */
     font-family: "STYuanti-SC-Regular", "Yuanti SC", "YouYuan", "Microsoft YaHei UI", sans-serif;
-    
-    /* --- 4. 布局 --- */
-    display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     padding: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     text-align: center;
-    cursor: move;
+    cursor: move;            /* 全局可拖拽指针 */
     box-sizing: border-box;
+    color: #333;             /* 稍微深一点的文字颜色，防止背景太透看不清 */
 }
 
-/* 按钮也同步改为直角，并统一字体 */
+/* 3. 按钮：极浅灰色、半透明、直角 */
 .modal-content button {
-    border-radius: 0;
-    margin: 10px;
-    padding: 10px 25px;
-    border: none;
+    border-radius: 0;        /* 按钮也是直角 */
+    margin: 15px 10px 0 10px;
+    padding: 12px 30px;
+    
+    /* 极浅灰色带透明度 */
+    background: rgba(245, 245, 245, 0.4); 
+    color: #444;
+    border: 1px solid rgba(200, 200, 200, 0.3);
+    
     cursor: pointer;
     font-weight: bold;
-    font-family: inherit; /* 继承父级的幼圆体 */
+    font-family: inherit;    /* 继承幼圆体 */
+    transition: all 0.2s ease;
+    outline: none;
 }
 
-/* 针对标题微调 */
+/* 按钮交互效果 */
+.modal-content button:hover {
+    background: rgba(255, 255, 255, 0.8); 
+    border-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+.modal-content button:active {
+    background: rgba(200, 200, 200, 0.5);
+    transform: translateY(1px);
+}
+
+/* 标题微调 */
 .modal-content h3 {
-    margin-top: 0;
+    margin: 0 0 10px 0;
     font-size: 24px;
 }
 
-        /* 互动元素恢复普通指针 */
-        .interactable { cursor: pointer; }
-        .btn-clear { background: #e74c3c; color: white; }
-        .btn-cancel { background: #bdc3c7; color: black; }
+.modal-content p {
+    margin: 0;
+    font-size: 16px;
+    opacity: 0.9;
+}
     </style>
 </head>
 <body>
