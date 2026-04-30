@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
         /* 基础页面设置 */
+/* 基础页面设置 */
 body { 
     margin: 0; 
     overflow: hidden; 
@@ -16,91 +17,98 @@ canvas {
     touch-action: none; 
 }
 
-/* 1. 遮罩层：设为完全透明，且不挡住下方的鼠标点击 */
+/* 1. 遮罩层：完全透明，鼠标可穿透 */
 #custom-modal {
     display: none; 
     position: fixed;
     top: 0; left: 0; 
     width: 100%; height: 100%;
-    background: transparent; /* 背景不加深 */
+    background: transparent; 
     z-index: 9999;
-    pointer-events: none;    /* 允许点击穿透到下层的方块 */
+    pointer-events: none;
 }
 
-/* 2. 弹窗主体：高透明、直角、横版比例 */
+/* 2. 弹窗主体：横版1.41:1、直角、极高透明 */
 .modal-content {
     display: flex;
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    pointer-events: auto;    /* 恢复弹窗自身的点击响应 */
+    pointer-events: auto;    /* 恢复弹窗自身的点击和拖拽 */
     
     /* 形状与比例 */
     width: 450px;
-    aspect-ratio: 1.41 / 1;  /* A4横版比例 */
+    aspect-ratio: 1.41 / 1;
     border-radius: 0;        /* 彻底直角 */
     
     /* 极高透明度与磨砂质感 */
-    background: rgba(255, 255, 255, 0.15); 
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.12); /* 降低到12%，更透 */
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     
     /* 边框与阴影 */
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
     
-    /* 布局与字体 */
-    font-family: "STYuanti-SC-Regular", "Yuanti SC", "YouYuan", "Microsoft YaHei UI", sans-serif;
+    /* 字体：指定等线，字重改小 */
+    font-family: "DengXian", "DengXian Light", "Microsoft YaHei Light", sans-serif;
+    font-weight: 300;        /* 减小字重，使其更纤细 */
+    
     flex-direction: column;
     justify-content: center;
     align-items: center;
     padding: 20px;
     text-align: center;
-    cursor: move;            /* 全局可拖拽指针 */
+    cursor: move;
     box-sizing: border-box;
-    color: #333;             /* 稍微深一点的文字颜色，防止背景太透看不清 */
+    color: #444;             /* 深灰文字 */
 }
 
-/* 3. 按钮：极浅灰色、半透明、直角 */
+/* 3. 标题微调 */
+.modal-content h3 {
+    margin: 0 0 12px 0;
+    font-size: 26px;
+    font-weight: 300;        /* 标题也保持纤细 */
+    color: #555;
+    letter-spacing: 2px;     /* 增加字间距更显可爱/空灵 */
+}
+
+/* 4. 正文微调 */
+.modal-content p {
+    margin: 0 0 20px 0;
+    font-size: 15px;
+    font-weight: 300;
+    opacity: 0.8;
+}
+
+/* 5. 按钮：极浅灰色、直角、纤细等线 */
 .modal-content button {
-    border-radius: 0;        /* 按钮也是直角 */
-    margin: 15px 10px 0 10px;
-    padding: 12px 30px;
+    border-radius: 0;
+    margin: 10px;
+    padding: 10px 30px;
     
-    /* 极浅灰色带透明度 */
-    background: rgba(245, 245, 245, 0.4); 
-    color: #444;
-    border: 1px solid rgba(200, 200, 200, 0.3);
+    background: rgba(245, 245, 245, 0.35); 
+    color: #666;
+    border: 1px solid rgba(200, 200, 200, 0.2);
     
     cursor: pointer;
-    font-weight: bold;
-    font-family: inherit;    /* 继承幼圆体 */
-    transition: all 0.2s ease;
+    font-family: inherit;    /* 继承等线体 */
+    font-weight: 300;        /* 按钮文字也纤细 */
+    font-size: 14px;
+    transition: all 0.3s ease;
     outline: none;
 }
 
-/* 按钮交互效果 */
+/* 按钮交互 */
 .modal-content button:hover {
-    background: rgba(255, 255, 255, 0.8); 
+    background: rgba(255, 255, 255, 0.7); 
     border-color: rgba(255, 255, 255, 0.5);
-    box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+    color: #222;
 }
 
 .modal-content button:active {
-    background: rgba(200, 200, 200, 0.5);
+    background: rgba(200, 200, 200, 0.4);
     transform: translateY(1px);
-}
-
-/* 标题微调 */
-.modal-content h3 {
-    margin: 0 0 10px 0;
-    font-size: 24px;
-}
-
-.modal-content p {
-    margin: 0;
-    font-size: 16px;
-    opacity: 0.9;
 }
     </style>
 </head>
@@ -173,7 +181,7 @@ canvas {
         let pressTimer;
         const modal = document.getElementById('custom-modal');
 
-        const startPress = () => { pressTimer = setTimeout(() => { modal.style.display = 'block'; }, 1000); };
+        const startPress = () => { pressTimer = setTimeout(() => { modal.style.display = 'block'; }, 3000); };
         const endPress = () => { clearTimeout(pressTimer); };
 
         render.canvas.addEventListener('mousedown', startPress);
