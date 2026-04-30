@@ -129,6 +129,49 @@ window.addEventListener('resize', () => {
     Body.setPosition(leftWall, { x: -wallThickness / 2, y: window.innerHeight / 2 });
     Body.setPosition(rightWall, { x: window.innerWidth + wallThickness / 2, y: window.innerHeight / 2 });
 });
+
+    let pressTimer; // 计时器变量
+const modal = document.getElementById('custom-modal');
+
+// 监听鼠标/触摸按下
+render.canvas.addEventListener('mousedown', startPress);
+render.canvas.addEventListener('touchstart', startPress);
+
+// 监听松开/离开（如果松开太快，就取消计时）
+render.canvas.addEventListener('mouseup', cancelPress);
+render.canvas.addEventListener('mouseleave', cancelPress);
+render.canvas.addEventListener('touchend', cancelPress);
+
+function startPress(e) {
+    // 5秒后执行显示弹窗的操作
+    pressTimer = setTimeout(() => {
+        modal.style.display = 'flex';
+    }, 5000); // 5000 毫秒 = 5 秒
+}
+
+function cancelPress() {
+    clearTimeout(pressTimer); // 如果没到5秒就松开，清除计时器
+}
+
+// --- 弹窗按钮逻辑 ---
+
+// 点击“全部消除”
+document.getElementById('confirm-clear').addEventListener('click', () => {
+    // 找到所有非静态的物体（即排除墙壁和地面）
+    const allBodies = Composite.allBodies(engine.world);
+    allBodies.forEach(body => {
+        if (!body.isStatic) {
+            Composite.remove(engine.world, body);
+        }
+    });
+    modal.style.display = 'none'; // 隐藏弹窗
+});
+
+// 点击“取消”
+document.getElementById('cancel-clear').addEventListener('click', () => {
+    modal.style.display = 'none';
+});
+        
     </script>
 </body>
 </html>
