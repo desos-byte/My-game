@@ -4,7 +4,7 @@
     <title>welcome!</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; overflow: hidden; background: #fafafa; }
+        body { margin: 0; overflow: hidden; background: #edf5f9; }
         /* 确保 Canvas 在移动端也全屏且不响应系统缩放 */
         canvas { display: block; touch-action: none; }
     </style>
@@ -26,7 +26,7 @@
                 width: window.innerWidth,
                 height: window.innerHeight,
                 wireframes: false, // 设置为 false 才能看到实心方块，而不是线框
-                background: '#fafafa'
+                background: '#edf5f9'
             }
         });
 
@@ -89,29 +89,30 @@ Composite.add(engine.world, [ground, ceiling, leftWall, rightWall]);
         Composite.add(engine.world, [box1, box2, box3, ground]);
 
         // 监听鼠标点击/触摸事件
-render.canvas.addEventListener('mousedown', (event) => {
-    // 只有当没有抓取到物体时，才创建新方块
-    // mouseConstraint.body 为空说明点击的是空白处
-    if (!mouseConstraint.body) {
-        
-        // 获取点击位置的坐标
-        const mouseX = event.clientX;
-        const mouseY = event.clientY;
+// --- 修复后的点击生成代码 ---
 
-        // 创建一个新的彩色随机大小方块
-        const size = 30 + Math.random() * 50; // 随机 30px 到 80px
-        const newBox = Bodies.rectangle(mouseX, mouseY, size, size, {
+// 使用 Matter.Events 来监听鼠标约束的起动
+Matter.Events.on(mouseConstraint, 'mousedown', function(event) {
+    // 获取当前鼠标抓取的物体
+    const grabbedBody = mouseConstraint.body;
+
+    // 如果点击时，鼠标下面没有物体 (grabbedBody 为空)
+    if (!grabbedBody) {
+        const mousePosition = event.mouse.position;
+        
+        // 创建新方块
+        const size = 40 + Math.random() * 40;
+        const newBox = Bodies.rectangle(mousePosition.x, mousePosition.y, size, size, {
             render: {
-                // 随机生成一个颜色
                 fillStyle: '#' + Math.floor(Math.random()*16777215).toString(16)
             }
         });
 
-        // 将新方块添加到世界中
+        // 添加到世界
         Composite.add(engine.world, newBox);
     }
 });
-
+        
 // 为了兼容手机触摸，添加 touchstart 监听
 render.canvas.addEventListener('touchstart', (event) => {
     if (!mouseConstraint.body) {
