@@ -147,11 +147,36 @@ canvas {
         }
 
         function clearPhysicsWorld() {
-            const allBodies = Composite.allBodies(engine.world);
-            allBodies.forEach(body => {
-                if (!body.isStatic) Composite.remove(engine.world, body);
-            });
-        }
+    const allBodies = Composite.allBodies(engine.world);
+    const nonStaticBodies = allBodies.filter(body => !body.isStatic);
+
+    nonStaticBodies.forEach((body) => {
+        // 1. 禁用碰撞，防止消失过程中互相推挤
+        body.collisionFilter.mask = 0;
+        
+        // 2. 赋予一个向上的微小随机速度，模拟“飘散”感
+        Body.setVelocity(body, { 
+            x: (Math.random() - 0.5) * 2, 
+            y: -Math.random() * 5 
+        });
+
+        // 3. 逐帧缩小并淡出（通过 Canvas 渲染层模拟）
+        let shrinkScale = 1.0;
+        const shrinkInterval = setInterval(() => {
+            shrinkScale -= 0.05; // 每次缩小 5%
+            
+            if (shrinkScale <= 0) {
+                Composite.remove(engine.world, body);
+                clearInterval(shrinkInterval);
+            } else {
+                // 实时缩放物体
+                Body.scale(body, 0.92, 0.92);
+                // 如果你使用的是 Matter.js 默认渲染器，修改透明度
+                body.render.opacity = shrinkScale;
+            }
+        }, 16); // 约 60fps
+    });
+}
 
         function removeTextSmoothly() {
             if (currentTextNode) {
