@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
+    <meta charset="UTF-8">
     <title>Welcome to Workspace</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
@@ -66,6 +67,7 @@
             opacity: 0;
             transition: opacity 0.5s ease;
             white-space: pre-wrap;
+            pointer-events: auto; /* 允许点击回复区域以清除或复制 */
         }
     </style>
 </head>
@@ -99,13 +101,15 @@
             }
         });
 
+        // 边界设置
         const wallOptions = { isStatic: true, render: { visible: false } };
-        Composite.add(engine.world, [
+        const walls = [
             Bodies.rectangle(window.innerWidth/2, window.innerHeight+30, window.innerWidth, 60, wallOptions),
             Bodies.rectangle(window.innerWidth/2, -30, window.innerWidth, 60, wallOptions),
             Bodies.rectangle(-30, window.innerHeight/2, 60, window.innerHeight, wallOptions),
             Bodies.rectangle(window.innerWidth+30, window.innerHeight/2, 60, window.innerHeight, wallOptions)
-        ]);
+        ];
+        Composite.add(engine.world, walls);
 
         const mouse = Mouse.create(render.canvas);
         const mouseConstraint = MouseConstraint.create(engine, {
@@ -114,7 +118,7 @@
         });
         Composite.add(engine.world, mouseConstraint);
 
-        // --- 2. 图片加载 ---
+        // --- 2. 纹理资源预加载 ---
         let loadedImages = [];
         TEXTURE_SOURCES.forEach(url => {
             const img = new Image();
@@ -122,13 +126,28 @@
             img.onload = () => loadedImages.push(img);
         });
 
-        // --- 3. 生成方块逻辑 ---
+        // --- 3. 核心物理交互逻辑 ---
+        let pressTimer, startPos = { x: 0, y: 0 };
+        const dontWant = document.getElementById('dont-want');
+
         Events.on(mouseConstraint, 'mousedown', (event) => {
+            const mousePos = event.mouse.position;
+            startPos = { x: mousePos.x, y: mousePos.y };
+            
+            // 长按计时逻辑
+            pressTimer = setTimeout(() => {
+                dontWant.classList.remove('exit');
+                dontWant.classList.add('show');
+                clearAllBodies();
+            }, 800); // 稍微缩短长按时间，提升反馈感
+
+            // 点击生成方块 (仅在没有抓取到已有物体时)
             if (!mouseConstraint.body && loadedImages.length > 0) {
                 const randomImg = loadedImages[Math.floor(Math.random() * loadedImages.length)];
                 const radius = TARGET_SIZE / 2;
-                const circle = Bodies.circle(event.mouse.position.x, event.mouse.position.y, radius, {
+                const circle = Bodies.circle(mousePos.x, mousePos.y, radius, {
                     restitution: 0.5,
+                    friction: 0.1,
                     render: {
                         sprite: {
                             texture: randomImg.src,
@@ -141,58 +160,11 @@
             }
         });
 
-        // --- 4. AI 聊天逻辑 (通过 Cloudflare Function) ---
-        const userInput = document.getElementById('user-input');
-        const aiResponse = document.getElementById('ai-response');
-
-        userInput.addEventListener('keypress', async (e) => {
-            if (e.key === 'Enter' && userInput.value.trim() !== "") {
-                const prompt = userInput.value;
-                userInput.value = "";
-                userInput.placeholder = "思考中...";
-                
-                try {
-                    // 请求同域下的 /chat 接口
-                    const res = await fetch("https://matter.milkmiku.dpdns.org/chat", {
-    method: "POST", // 必须有这一行且是大写
-    headers: { "Content-Type": "application/json" }, // 最好加上这行
-    body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
-    })
-});
-                    
-                    const data = await res.json();
-                    if (data.error) throw new Error(data.error);
-
-                    const text = data.candidates[0].content.parts[0].text;
-                    aiResponse.innerText = text;
-                    aiResponse.style.opacity = "1";
-                    
-                    setTimeout(() => { aiResponse.style.opacity = "0"; }, 15000);
-                } catch (err) {
-                    console.error("AI 呼叫失败:", err);
-                    aiResponse.innerText = "暂时无法连接到 AI，请检查 CF 变量设置。";
-                    aiResponse.style.opacity = "1";
-                }
-                userInput.placeholder = "和 Gemini 聊聊...";
-            }
-        });
-
-        // --- 5. 长按清场逻辑 ---
-        let pressTimer, startPos = { x: 0, y: 0 };
-        const dontWant = document.getElementById('dont-want');
-
-        Events.on(mouseConstraint, 'mousedown', (event) => {
-            startPos = { x: event.mouse.position.x, y: event.mouse.position.y };
-            pressTimer = setTimeout(() => {
-                dontWant.classList.remove('exit');
-                dontWant.classList.add('show');
-                clearAllBodies();
-            }, 1000);
-        });
-
         Events.on(mouseConstraint, 'mousemove', (event) => {
-            if (Math.abs(event.mouse.position.x - startPos.x) > 5) clearTimeout(pressTimer);
+            // 如果移动距离超过阈值，取消长按判定
+            if (Math.abs(event.mouse.position.x - startPos.x) > 10) {
+                clearTimeout(pressTimer);
+            }
         });
 
         Events.on(mouseConstraint, 'mouseup', () => {
@@ -206,7 +178,7 @@
         function clearAllBodies() {
             const bodies = Composite.allBodies(engine.world).filter(b => !b.isStatic);
             bodies.forEach(body => {
-                body.collisionFilter.mask = 0;
+                body.collisionFilter.mask = 0; // 穿透效果
                 let s = 1.0;
                 const anim = setInterval(() => {
                     s -= 0.05;
@@ -221,11 +193,55 @@
             });
         }
 
+        // --- 4. Gemini 聊天逻辑 (优化后的请求) ---
+        const userInput = document.getElementById('user-input');
+        const aiResponse = document.getElementById('ai-response');
+
+        userInput.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter' && userInput.value.trim() !== "") {
+                const prompt = userInput.value;
+                userInput.value = "";
+                userInput.placeholder = "思考中...";
+                
+                try {
+                    // 自动适应当前环境域名，并添加 cache: "no-cache" 绕过某些浏览器的缓存限制
+                    const res = await fetch(window.location.origin + "/chat", {
+                        method: "POST",
+                        cache: "no-cache",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }]
+                        })
+                    });
+                    
+                    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+
+                    const text = data.candidates[0].content.parts[0].text;
+                    aiResponse.innerText = text;
+                    aiResponse.style.opacity = "1";
+                    
+                    // 15秒后自动淡出回复
+                    setTimeout(() => { aiResponse.style.opacity = "0"; }, 15000);
+                } catch (err) {
+                    console.error("AI 呼叫失败:", err);
+                    aiResponse.innerText = "暂时无法连接到 AI，请检查 Cloudflare 变量设置。";
+                    aiResponse.style.opacity = "1";
+                }
+                userInput.placeholder = "和 Gemini 聊聊...";
+            }
+        });
+
+        // --- 5. 引擎运行与自适应 ---
         Render.run(render);
         Runner.run(Runner.create(), engine);
+
         window.addEventListener('resize', () => {
             render.canvas.width = window.innerWidth;
             render.canvas.height = window.innerHeight;
+            // 更新墙壁位置 (可选，这里简便起见直接重载或保持原位)
         });
     </script>
 </body>
