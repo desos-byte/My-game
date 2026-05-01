@@ -43,10 +43,12 @@
             color: #66ccff;
             letter-spacing: -0.8px;
             line-height: 1.1;
-            pointer-events: none;
+            /* 改为 auto 以便响应点击 */
+            pointer-events: auto; 
             position: fixed;
             left: 45px;
             z-index: 10000;
+            cursor: pointer; /* 鼠标悬停显示手型提示可点击 */
         }
         #chat-container {
             position: fixed;
@@ -70,19 +72,17 @@
         #user-input::placeholder { color: rgba(102, 204, 255, 0.3); }
 
         #ai-response {
-            top: 105px; /* 位于聊天框和漂浮文字下方 */
+            top: 105px; 
             font-size: 17px;
             max-width: 280px;
             opacity: 0;
             transition: opacity 0.5s ease;
             white-space: pre-wrap;
-            pointer-events: auto;
         }
     </style>
 </head>
 <body>
 
-    <!-- 新增：聊天输入与回复容器 -->
     <div id="chat-container">
         <input type="text" id="user-input" placeholder="和 Gemini 聊聊..." autocomplete="off">
     </div>
@@ -92,14 +92,12 @@
     <script>
         const { Engine, Render, Runner, Bodies, Composite, Mouse, MouseConstraint, Body, Events } = Matter;
 
-        // --- 配置区：图片数组 ---
         const TEXTURE_SOURCES = [
-            'https://files.catbox.moe/wq99z2.png',  // 刚才发的图
-            'https://files.catbox.moe/p9o75t.png'   // 之前的图
+            'https://files.catbox.moe/wq99z2.png',
+            'https://files.catbox.moe/p9o75t.png'
         ];
         const TARGET_SIZE = 85; 
 
-        // --- 图片预加载逻辑 ---
         const loadedImages = [];
         TEXTURE_SOURCES.forEach(url => {
             const img = new Image();
@@ -135,12 +133,9 @@
         });
         Composite.add(engine.world, mouseConstraint);
 
-        // --- 点击生成（随机抽取图片） ---
         Events.on(mouseConstraint, 'mousedown', (event) => {
             if (!mouseConstraint.body && loadedImages.length > 0) {
-                // 随机选择一张已加载的图片
                 const randomImg = loadedImages[Math.floor(Math.random() * loadedImages.length)];
-                
                 const radius = TARGET_SIZE / 2;
                 const scaleX = TARGET_SIZE / randomImg.width;
                 const scaleY = TARGET_SIZE / randomImg.height;
@@ -159,7 +154,6 @@
             }
         });
 
-        // --- 长按与消散逻辑 (原汁原味) ---
         let pressTimer, timers = [], currentTextNode = null, startPos = { x: 0, y: 0 };
 
         Events.on(mouseConstraint, 'mousedown', (event) => {
@@ -208,7 +202,7 @@
         function clearWithAnimation() {
             Composite.allBodies(engine.world).filter(b => !b.isStatic).forEach(body => {
                 body.collisionFilter.mask = 0;
-                Body.setAngularVelocity(body, (Math.random()-0.5)*0.2); // 你酷炫的旋转效果
+                Body.setAngularVelocity(body, (Math.random()-0.5)*0.2);
                 let s = 1.0;
                 const anim = setInterval(() => {
                     s -= 0.05;
@@ -218,9 +212,16 @@
             });
         }
 
-        // --- 新增：AI 聊天通信功能 ---
+        // --- AI 聊天逻辑修改部分 ---
         const userInput = document.getElementById('user-input');
         const aiResponse = document.getElementById('ai-response');
+
+        // 新增：点击 AI 回复框时隐藏
+        aiResponse.addEventListener('click', () => {
+            aiResponse.style.opacity = "0";
+            // 等动画结束后清空文字，防止干扰下次显示
+            setTimeout(() => { aiResponse.innerText = ""; }, 500);
+        });
 
         userInput.addEventListener('keypress', async (e) => {
             if (e.key === 'Enter' && userInput.value.trim() !== "") {
@@ -229,13 +230,10 @@
                 userInput.placeholder = "思考中...";
                 
                 try {
-                    // 使用 GET 方式防止拦截，拼接参数到 URL
                     const targetUrl = `${window.location.origin}/chat?prompt=${encodeURIComponent(prompt)}`;
                     const res = await fetch(targetUrl, { method: "GET", cache: "no-cache" });
-                    
                     const data = await res.json();
                     
-                    // 拦截并解析 API 抛出的深层错误
                     if (data.error) {
                         const errorMsg = typeof data.error === 'object' ? (data.error.message || JSON.stringify(data.error)) : data.error;
                         throw new Error(errorMsg);
@@ -249,7 +247,7 @@
                     aiResponse.innerText = text;
                     aiResponse.style.opacity = "1";
                     
-                    setTimeout(() => { aiResponse.style.opacity = "0"; }, 15000);
+                    // 移除原来的 15 秒定时器，现在改为点击消失
                 } catch (err) {
                     console.error("请求失败:", err);
                     aiResponse.innerText = "状态: " + err.message;
@@ -259,7 +257,6 @@
             }
         });
 
-        // 启动引擎
         Render.run(render);
         Runner.run(Runner.create(), engine);
         window.addEventListener('resize', () => {
