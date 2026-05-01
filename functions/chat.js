@@ -1,72 +1,45 @@
-export async function onRequest(context) {
-    const { request, env } = context;
-    const API_KEY = env.api; // 确保你在 Cloudflare Pages 后台设置了变量名为 api 的 API Key
-    const url = new URL(request.url);
+export async function onRequestGet(context) {
+  const { searchParams } = new URL(context.request.url);
+  const prompt = searchParams.get('prompt');
+  
+  // --- 关键点：读取你设置的名为 "api" 的环境变量 ---
+  const API_KEY = context.env.api; 
 
-    let prompt = "";
+  if (!prompt) {
+    return new Response(JSON.stringify({ error: "Missing prompt" }), { status: 400 });
+  }
 
-    // --- 1. 提取 Prompt (兼容 GET 和 POST) ---
-    try {
-        if (request.method === "GET") {
-            // 从 URL 参数 ?prompt=xxx 中获取内容
-            prompt = url.searchParams.get("prompt");
-        } else if (request.method === "POST") {
-            // 从 JSON Body 中获取内容
-            const body = await request.json();
-            if (body.contents && body.contents[0] && body.contents[0].parts) {
-                prompt = body.contents[0].parts[0].text;
-            }
-        }
+  // 使用 v1 版本的稳定端点，避免 v1beta 的路径匹配问题
+  const googleApi = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
-        if (!prompt || prompt.trim() === "") {
-            return new Response(JSON.stringify({ error: "输入的 Prompt 为空" }), {
-                status: 400,
-                headers: { "Content-Type": "application/json" }
-            });
-        }
-    } catch (err) {
-        return new Response(JSON.stringify({ error: "解析请求失败: " + err.message }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" }
-        });
+  try {
+    // 即使前端发给 Cloudflare 的是 GET，Cloudflare 发给 Google 时必须转成 POST
+    const response = await fetch(googleApi, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: prompt }]
+        }]
+      })
+    });
+
+    const data = await response.json();
+
+    // 如果 Google 返回了报错（比如 API Key 无效），直接透传给前端方便排查
+    if (data.error) {
+      return new Response(JSON.stringify({ error: data.error.message || data.error }), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 200 // 这里给 200 是为了让前端能看到具体的报错文字
+      });
     }
 
-    // --- 2. 调用 Google Gemini API ---
-    const googleApi = const googleApi = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
-
-    try {
-        const response = await fetch(googleApi, {
-            method: "POST", // 发给 Google 的始终是 POST
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
-            })
-        });
-
-        const data = await response.json();
-
-        // 检查 Google 是否返回了 API 级错误（如 Key 无效、超限等）
-        if (data.error) {
-            return new Response(JSON.stringify({ error: data.error.message || "Gemini API 内部错误" }), {
-                status: response.status,
-                headers: { "Content-Type": "application/json" }
-            });
-        }
-
-        // --- 3. 返回结果给前端 ---
-        return new Response(JSON.stringify(data), {
-            headers: {
-                "Content-Type": "application/json",
-                // 解决可能的跨域问题
-                "Access-Control-Allow-Origin": "*"
-            }
-        });
-
-    } catch (err) {
-        // 网络层面的错误
-        return new Response(JSON.stringify({ error: "网络传输失败: " + err.message }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" }
-        });
-    }
+    return new Response(JSON.stringify(data), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: "Cloudflare Worker Error: " + e.message }), { 
+      status: 500 
+    });
+  }
 }
