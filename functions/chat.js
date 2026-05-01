@@ -1,5 +1,6 @@
 export async function onRequestPost(context) {
-    const API_KEY = context.env.api; // 读取你在后台设置的变量
+    // 自动从 Cloudflare 后台读取名为 'api' 的变量
+    const API_KEY = context.env.api; 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
     try {
