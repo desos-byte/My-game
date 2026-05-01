@@ -72,35 +72,20 @@
 <body>
 
     <div id="chat-container">
-        <input type="text" id="user-input" placeholder="请输入文本" autocomplete="off">
+        <input type="text" id="user-input" placeholder="和 Gemini 聊聊..." autocomplete="off">
     </div>
 
     <div id="dont-want" class="text-base floating-text">不要了…</div>
     <div id="ai-response" class="text-base"></div>
 
-    <!-- 引入 Gemini SDK -->
-    <script type="importmap">
-    {
-        "imports": {
-            "@google/generative-ai": "https://esm.run/@google/generative-ai"
-        }
-    }
-    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 
     <script type="module">
-        import { GoogleGenerativeAI } from "@google/generative-ai";
-
-        // --- 1. 基础配置 ---
-        
-
+        // --- 1. 物理引擎基础配置 ---
         const { Engine, Render, Runner, Bodies, Composite, Mouse, MouseConstraint, Body, Events } = Matter;
         const TARGET_SIZE = 85; 
-        const TEXTURE_SOURCES = [
-            'https://files.catbox.moe/wq99z2.png' // 你提供的最新头像
-        ];
+        const TEXTURE_SOURCES = ['https://files.catbox.moe/wq99z2.png'];
 
-        // --- 2. 物理引擎初始化 ---
         const engine = Engine.create();
         const render = Render.create({
             element: document.body,
@@ -115,13 +100,12 @@
         });
 
         const wallOptions = { isStatic: true, render: { visible: false } };
-        const walls = [
+        Composite.add(engine.world, [
             Bodies.rectangle(window.innerWidth/2, window.innerHeight+30, window.innerWidth, 60, wallOptions),
             Bodies.rectangle(window.innerWidth/2, -30, window.innerWidth, 60, wallOptions),
             Bodies.rectangle(-30, window.innerHeight/2, 60, window.innerHeight, wallOptions),
             Bodies.rectangle(window.innerWidth+30, window.innerHeight/2, 60, window.innerHeight, wallOptions)
-        ];
-        Composite.add(engine.world, walls);
+        ]);
 
         const mouse = Mouse.create(render.canvas);
         const mouseConstraint = MouseConstraint.create(engine, {
@@ -130,23 +114,19 @@
         });
         Composite.add(engine.world, mouseConstraint);
 
-        // --- 3. 图片加载管理 ---
+        // --- 2. 图片加载 ---
         let loadedImages = [];
-        function loadTextures() {
-            TEXTURE_SOURCES.forEach(url => {
-                const img = new Image();
-                img.src = url;
-                img.onload = () => loadedImages.push(img);
-            });
-        }
-        loadTextures();
+        TEXTURE_SOURCES.forEach(url => {
+            const img = new Image();
+            img.src = url;
+            img.onload = () => loadedImages.push(img);
+        });
 
-        // --- 4. 生成方块逻辑 ---
+        // --- 3. 生成方块逻辑 ---
         Events.on(mouseConstraint, 'mousedown', (event) => {
             if (!mouseConstraint.body && loadedImages.length > 0) {
                 const randomImg = loadedImages[Math.floor(Math.random() * loadedImages.length)];
                 const radius = TARGET_SIZE / 2;
-                
                 const circle = Bodies.circle(event.mouse.position.x, event.mouse.position.y, radius, {
                     restitution: 0.5,
                     render: {
@@ -161,29 +141,43 @@
             }
         });
 
-        // --- 5. AI 聊天与响应显示 ---
-        export async function onRequestPost(context) {
-    const API_KEY = context.env.api; // 读取你在后台设置的变量
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+        // --- 4. AI 聊天逻辑 (通过 Cloudflare Function) ---
+        const userInput = document.getElementById('user-input');
+        const aiResponse = document.getElementById('ai-response');
 
-    try {
-        const body = await context.request.json();
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
+        userInput.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter' && userInput.value.trim() !== "") {
+                const prompt = userInput.value;
+                userInput.value = "";
+                userInput.placeholder = "思考中...";
+                
+                try {
+                    // 请求同域下的 /chat 接口
+                    const res = await fetch("/chat", {
+                        method: "POST",
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }]
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+
+                    const text = data.candidates[0].content.parts[0].text;
+                    aiResponse.innerText = text;
+                    aiResponse.style.opacity = "1";
+                    
+                    setTimeout(() => { aiResponse.style.opacity = "0"; }, 15000);
+                } catch (err) {
+                    console.error("AI 呼叫失败:", err);
+                    aiResponse.innerText = "暂时无法连接到 AI，请检查 CF 变量设置。";
+                    aiResponse.style.opacity = "1";
+                }
+                userInput.placeholder = "和 Gemini 聊聊...";
+            }
         });
 
-        const data = await response.json();
-        return new Response(JSON.stringify(data), {
-            headers: { "Content-Type": "application/json" }
-        });
-    } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
-    }
-}
-
-        // --- 6. 长按“不要了”与消散动画 ---
+        // --- 5. 长按清场逻辑 ---
         let pressTimer, startPos = { x: 0, y: 0 };
         const dontWant = document.getElementById('dont-want');
 
@@ -197,12 +191,7 @@
         });
 
         Events.on(mouseConstraint, 'mousemove', (event) => {
-            const dx = Math.abs(event.mouse.position.x - startPos.x);
-            const dy = Math.abs(event.mouse.position.y - startPos.y);
-            if (dx > 2 || dy > 2) {
-                clearTimeout(pressTimer);
-                dontWant.classList.remove('show');
-            }
+            if (Math.abs(event.mouse.position.x - startPos.x) > 5) clearTimeout(pressTimer);
         });
 
         Events.on(mouseConstraint, 'mouseup', () => {
@@ -217,7 +206,6 @@
             const bodies = Composite.allBodies(engine.world).filter(b => !b.isStatic);
             bodies.forEach(body => {
                 body.collisionFilter.mask = 0;
-                Body.setAngularVelocity(body, (Math.random()-0.5)*0.2);
                 let s = 1.0;
                 const anim = setInterval(() => {
                     s -= 0.05;
@@ -234,7 +222,6 @@
 
         Render.run(render);
         Runner.run(Runner.create(), engine);
-
         window.addEventListener('resize', () => {
             render.canvas.width = window.innerWidth;
             render.canvas.height = window.innerHeight;
