@@ -15,7 +15,7 @@ export async function onRequestGet(context) {
       body: JSON.stringify({
         system_instruction: {
           parts: [{ 
-            text: "你是中文助理。直接开始回答，不要任何前言和大纲。" 
+            text: "你是中文助理。直接回答问题。严禁输出英文大纲、格式说明或自检。回答必须是纯文本中文。" 
           }]
         },
         contents: [{
@@ -32,46 +32,49 @@ export async function onRequestGet(context) {
     
     if (data.candidates && data.candidates[0].content) {
       let rawText = data.candidates[0].content.parts[0].text;
-      
-      // 1. 按行拆分
       let lines = rawText.split('\n');
       
-      // 2. 先强制删掉前三行 (Blind Cut)
+      // 1. 强制盲切前三行
       let shiftedLines = lines.slice(3);
       
       let startIndex = 0;
       let foundContent = false;
 
-      // 3. 在剩下的行里寻找中文爆发点 (Density Check)
+      // 2. 字节爆发点识别 (汉字字节数 > 总字节数 * 60%)
       for (let i = 0; i < shiftedLines.length; i++) {
         const line = shiftedLines[i].trim();
         if (!line) continue;
 
-        const chineseChars = (line.match(/[\u4e00-\u9fa5]/g) || []).length;
+        // 使用 TextEncoder 获取字节长度
+        const encoder = new TextEncoder();
+        const totalBytes = encoder.encode(line).length;
         
-        // 如果该行汉字多于 8 个，认为正式进入中文正文
-        if (chineseChars > 8) {
+        // 匹配汉字并计算其字节数（每个汉字 3 字节）
+        const chineseMatch = line.match(/[\u4e00-\u9fa5]/g);
+        const chineseBytes = chineseMatch ? chineseMatch.length * 3 : 0;
+
+        // 判断比例是否超过 60%
+        if (totalBytes > 0 && (chineseBytes / totalBytes) >= 0.6) {
           startIndex = i;
           foundContent = true;
           break;
         }
       }
 
-      // 如果没找到爆发点，就保底显示所有切除后的行；找到了就从爆发点开始
+      // 3. 截取并清洗
       let finalLines = foundContent ? shiftedLines.slice(startIndex) : shiftedLines;
 
-      // 4. 清洗：干掉自检行、Markdown 符号、空行
       const resultText = finalLines
         .filter(line => {
           const l = line.toLowerCase();
-          const isJunk = l.includes('is it') || l.includes('yes.') || l.includes('no.') || l.includes('constraint');
-          return !isJunk && line.trim() !== ""; 
+          // 进一步剔除残余的英文自检行
+          return !l.includes('is it') && !l.includes('yes.') && !l.includes('no.') && line.trim() !== "";
         })
         .join('\n')
-        .replace(/[\*#_>`-]/g, '') // 确保字体厚度统一，不触发 Markdown 加粗
+        .replace(/[\*#_>`-]/g, '') // 移除 Markdown 符号，配合 CSS 保持字体厚度统一
         .trim();
 
-      data.candidates[0].content.parts[0].text = resultText || "内容处理中...";
+      data.candidates[0].content.parts[0].text = resultText || "未检测到有效中文回答。";
     }
 
     return new Response(JSON.stringify(data), {
