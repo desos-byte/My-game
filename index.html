@@ -7,34 +7,29 @@
         body { margin: 0; overflow: hidden; background: #edf5f9; }
         canvas { display: block; touch-action: none; }
 
-        /* 极致纤细、圆润、紧凑的文字 */
         .floating-text {
             position: fixed;
             top: 40px;
             left: -200px;
             font-family: "Hiragino Maru Gothic ProN", "STYuanti-SC-Light", "YouYuan", sans-serif;
-            font-weight: 100; /* 粗细减半 */
+            font-weight: 100;
             color: #66ccff;
             font-size: 24px;
-            letter-spacing: -0.8px; /* 间距减小 */
-            line-height: 0.8;       /* 上下距离减小 */
+            letter-spacing: -0.8px;
+            line-height: 0.8;
             pointer-events: none;
             z-index: 10000;
             opacity: 0;
             transition: all 0.7s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.5s ease;
         }
 
-        .floating-text.show {
-            left: 45px;
-            opacity: 1;
-        }
+        .floating-text.show { left: 45px; opacity: 1; }
 
-        /* 烟雾消散动画 */
         .floating-text.exit {
             opacity: 0;
             top: 15px;
             transform: scale(1.1) translateY(-10px);
-            filter: blur(6px); /* 烟雾感 */
+            filter: blur(6px);
             transition: all 0.8s ease-out;
         }
     </style>
@@ -51,7 +46,6 @@
             options: { width: window.innerWidth, height: window.innerHeight, wireframes: false, background: '#edf5f9' }
         });
 
-        // 隐形墙壁
         const wallOptions = { isStatic: true, render: { visible: false } };
         const ground = Bodies.rectangle(window.innerWidth/2, window.innerHeight+30, window.innerWidth, 60, wallOptions);
         const ceiling = Bodies.rectangle(window.innerWidth/2, -30, window.innerWidth, 60, wallOptions);
@@ -66,32 +60,32 @@
 
         Composite.add(engine.world, [ground, ceiling, leftWall, rightWall, mouseConstraint]);
 
-        // --- 核心：表情包贴图设置 ---
+        // --- 配置区 ---
         const TEXTURE_URL = 'https://files.catbox.moe/wq99z2.png';
+        const TARGET_SIZE = 80; 
+        const IMG_ORIGIN = 1024; 
 
         Events.on(mouseConstraint, 'mousedown', (event) => {
             if (!mouseConstraint.body) {
-                const size = 80;
-                const newBody = Bodies.circle(event.mouse.position.x, event.mouse.position.y, size/2, {
+                // 使用圆形碰撞箱
+                const radius = TARGET_SIZE / 2;
+                const circleAvatar = Bodies.circle(event.mouse.position.x, event.mouse.position.y, radius, {
                     restitution: 0.6,
                     friction: 0.1,
                     render: {
                         sprite: {
                             texture: TEXTURE_URL,
-                            xScale: size / 1024, // 根据你提供的原图比例自动适配
-                            yScale: size / 1024
+                            xScale: TARGET_SIZE / IMG_ORIGIN,
+                            yScale: TARGET_SIZE / IMG_ORIGIN
                         }
                     }
                 });
-                Composite.add(engine.world, newBody);
+                Composite.add(engine.world, circleAvatar);
             }
         });
 
-        // --- 交互逻辑：长按静止检测 ---
-        let pressTimer;
-        let timers = [];
-        let currentTextNode = null;
-        let startPos = { x: 0, y: 0 };
+        // --- 长按检测与动画逻辑 ---
+        let pressTimer, timers = [], currentTextNode = null, startPos = { x: 0, y: 0 };
 
         Events.on(mouseConstraint, 'mousedown', (event) => {
             startPos = { x: event.mouse.position.x, y: event.mouse.position.y };
@@ -99,15 +93,12 @@
         });
 
         Events.on(mouseConstraint, 'mousemove', (event) => {
-            const dx = Math.abs(event.mouse.position.x - startPos.x);
-            const dy = Math.abs(event.mouse.position.y - startPos.y);
-            if (dx > 2 || dy > 2) cancelEverything();
+            if (Math.abs(event.mouse.position.x - startPos.x) > 2 || Math.abs(event.mouse.position.y - startPos.y) > 2) cancelEverything();
         });
 
         Events.on(mouseConstraint, 'mouseup', () => cancelEverything());
 
         function startSequence() {
-            // 120ms 后滑入文字
             const t1 = setTimeout(() => {
                 if (!currentTextNode) {
                     currentTextNode = document.createElement('div');
@@ -118,16 +109,11 @@
                 }
             }, 120);
 
-            // 3500ms 后清屏并触发烟雾效果
             const t2 = setTimeout(() => {
                 clearWithAnimation();
                 if (currentTextNode) currentTextNode.classList.add('exit');
-                setTimeout(() => { 
-                    if(currentTextNode) currentTextNode.remove(); 
-                    currentTextNode = null; 
-                }, 800);
-            }, 120 + 3500);
-
+                setTimeout(() => { if(currentTextNode) currentTextNode.remove(); currentTextNode = null; }, 800);
+            }, 3620);
             timers.push(t1, t2);
         }
 
@@ -145,23 +131,14 @@
         }
 
         function clearWithAnimation() {
-            const bodies = Composite.allBodies(engine.world).filter(b => !b.isStatic);
-            bodies.forEach(body => {
-                body.collisionFilter.mask = 0; // 移除碰撞
-                // 赋予一个微小的随机旋转，让消失更有动感
-                Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.2);
-                
-                let shrink = 1.0;
+            Composite.allBodies(engine.world).filter(b => !b.isStatic).forEach(body => {
+                body.collisionFilter.mask = 0;
+                Body.setAngularVelocity(body, (Math.random()-0.5)*0.2);
+                let s = 1.0;
                 const anim = setInterval(() => {
-                    shrink -= 0.05;
-                    if (shrink <= 0) {
-                        Composite.remove(engine.world, body);
-                        clearInterval(anim);
-                    } else {
-                        // 方块向中心收缩
-                        Body.scale(body, 0.9, 0.9);
-                        body.render.opacity = shrink;
-                    }
+                    s -= 0.05;
+                    if (s <= 0) { Composite.remove(engine.world, body); clearInterval(anim); }
+                    else { Body.scale(body, 0.9, 0.9); body.render.opacity = s; }
                 }, 16);
             });
         }
