@@ -8,7 +8,6 @@
         body { margin: 0; overflow: hidden; background: #edf5f9; }
         canvas { display: block; touch-action: none; image-rendering: high-quality; }
 
-        /* 统一文本样式：极细、紧凑、圆润 */
         .text-base {
             font-family: "Hiragino Maru Gothic ProN", "STYuanti-SC-Light", "YouYuan", sans-serif;
             font-weight: 100;
@@ -21,7 +20,6 @@
             z-index: 10000;
         }
 
-        /* 聊天输入框：全透明 */
         #chat-container {
             position: fixed;
             top: 20px;
@@ -43,7 +41,6 @@
         }
         #user-input::placeholder { color: rgba(102, 204, 255, 0.3); }
 
-        /* “不要了”弹出位置 */
         .floating-text {
             top: 65px;
             font-size: 24px;
@@ -59,7 +56,6 @@
             transition: all 0.8s ease-out;
         }
 
-        /* AI 回复区域：在“不要了”下方 */
         #ai-response {
             top: 105px;
             font-size: 17px;
@@ -67,7 +63,7 @@
             opacity: 0;
             transition: opacity 0.5s ease;
             white-space: pre-wrap;
-            pointer-events: auto; /* 允许点击回复区域以清除或复制 */
+            pointer-events: auto;
         }
     </style>
 </head>
@@ -83,11 +79,16 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 
     <script type="module">
-        // --- 1. 物理引擎基础配置 ---
         const { Engine, Render, Runner, Bodies, Composite, Mouse, MouseConstraint, Body, Events } = Matter;
+        
+        // --- 1. 配置区域 ---
         const TARGET_SIZE = 85; 
-        const TEXTURE_SOURCES = ['https://files.catbox.moe/wq99z2.png'];
+        const TEXTURE_SOURCES = [
+            'https://files.catbox.moe/wq99z2.png'
+            // 在这里添加更多图片链接...
+        ];
 
+        // --- 2. 初始化引擎 ---
         const engine = Engine.create();
         const render = Render.create({
             element: document.body,
@@ -101,15 +102,13 @@
             }
         });
 
-        // 边界设置
         const wallOptions = { isStatic: true, render: { visible: false } };
-        const walls = [
+        Composite.add(engine.world, [
             Bodies.rectangle(window.innerWidth/2, window.innerHeight+30, window.innerWidth, 60, wallOptions),
             Bodies.rectangle(window.innerWidth/2, -30, window.innerWidth, 60, wallOptions),
             Bodies.rectangle(-30, window.innerHeight/2, 60, window.innerHeight, wallOptions),
             Bodies.rectangle(window.innerWidth+30, window.innerHeight/2, 60, window.innerHeight, wallOptions)
-        ];
-        Composite.add(engine.world, walls);
+        ]);
 
         const mouse = Mouse.create(render.canvas);
         const mouseConstraint = MouseConstraint.create(engine, {
@@ -118,7 +117,7 @@
         });
         Composite.add(engine.world, mouseConstraint);
 
-        // --- 2. 纹理资源预加载 ---
+        // --- 3. 纹理资源预加载逻辑 ---
         let loadedImages = [];
         TEXTURE_SOURCES.forEach(url => {
             const img = new Image();
@@ -126,7 +125,7 @@
             img.onload = () => loadedImages.push(img);
         });
 
-        // --- 3. 核心物理交互逻辑 ---
+        // --- 4. 交互：生成与长按 ---
         let pressTimer, startPos = { x: 0, y: 0 };
         const dontWant = document.getElementById('dont-want');
 
@@ -134,20 +133,18 @@
             const mousePos = event.mouse.position;
             startPos = { x: mousePos.x, y: mousePos.y };
             
-            // 长按计时逻辑
             pressTimer = setTimeout(() => {
                 dontWant.classList.remove('exit');
                 dontWant.classList.add('show');
                 clearAllBodies();
-            }, 800); // 稍微缩短长按时间，提升反馈感
+            }, 800);
 
-            // 点击生成方块 (仅在没有抓取到已有物体时)
+            // 核心修复：从数组中随机挑选图片生成
             if (!mouseConstraint.body && loadedImages.length > 0) {
                 const randomImg = loadedImages[Math.floor(Math.random() * loadedImages.length)];
                 const radius = TARGET_SIZE / 2;
                 const circle = Bodies.circle(mousePos.x, mousePos.y, radius, {
                     restitution: 0.5,
-                    friction: 0.1,
                     render: {
                         sprite: {
                             texture: randomImg.src,
@@ -161,10 +158,7 @@
         });
 
         Events.on(mouseConstraint, 'mousemove', (event) => {
-            // 如果移动距离超过阈值，取消长按判定
-            if (Math.abs(event.mouse.position.x - startPos.x) > 10) {
-                clearTimeout(pressTimer);
-            }
+            if (Math.abs(event.mouse.position.x - startPos.x) > 10) clearTimeout(pressTimer);
         });
 
         Events.on(mouseConstraint, 'mouseup', () => {
@@ -178,7 +172,7 @@
         function clearAllBodies() {
             const bodies = Composite.allBodies(engine.world).filter(b => !b.isStatic);
             bodies.forEach(body => {
-                body.collisionFilter.mask = 0; // 穿透效果
+                body.collisionFilter.mask = 0;
                 let s = 1.0;
                 const anim = setInterval(() => {
                     s -= 0.05;
@@ -193,7 +187,7 @@
             });
         }
 
-        // --- 4. Gemini 聊天逻辑 (优化后的请求) ---
+        // --- 5. 聊天：GET 请求绕过拦截 ---
         const userInput = document.getElementById('user-input');
         const aiResponse = document.getElementById('ai-response');
 
@@ -204,57 +198,29 @@
                 userInput.placeholder = "思考中...";
                 
                 try {
-                    // 改用 GET 请求，将内容挂在 URL 后面
                     const targetUrl = `${window.location.origin}/chat?prompt=${encodeURIComponent(prompt)}`;
-                    
-                    const res = await fetch(targetUrl, {
-                        method: "GET",
-                        cache: "no-cache"
-                    });
+                    const res = await fetch(targetUrl, { method: "GET", cache: "no-cache" });
                     
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
                     const data = await res.json();
                     if (data.error) throw new Error(data.error);
 
-                    const text = data.candidates[0].content.parts[0].text;
-                    aiResponse.innerText = text;
+                    aiResponse.innerText = data.candidates[0].content.parts[0].text;
                     aiResponse.style.opacity = "1";
-                    
                     setTimeout(() => { aiResponse.style.opacity = "0"; }, 15000);
                 } catch (err) {
                     aiResponse.innerText = "状态: " + err.message;
-                    aiResponse.style.opacity = "1";
-                }
-                    
-                    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-
-                    const data = await res.json();
-                    if (data.error) throw new Error(data.error);
-
-                    const text = data.candidates[0].content.parts[0].text;
-                    aiResponse.innerText = text;
-                    aiResponse.style.opacity = "1";
-                    
-                    // 15秒后自动淡出回复
-                    setTimeout(() => { aiResponse.style.opacity = "0"; }, 15000);
-                } catch (err) {
-                    console.error("AI 呼叫失败:", err);
-                    aiResponse.innerText = "暂时无法连接到 AI，请检查 Cloudflare 变量设置。";
                     aiResponse.style.opacity = "1";
                 }
                 userInput.placeholder = "和 Gemini 聊聊...";
             }
         });
 
-        // --- 5. 引擎运行与自适应 ---
         Render.run(render);
         Runner.run(Runner.create(), engine);
-
         window.addEventListener('resize', () => {
             render.canvas.width = window.innerWidth;
             render.canvas.height = window.innerHeight;
-            // 更新墙壁位置 (可选，这里简便起见直接重载或保持原位)
         });
     </script>
 </body>
