@@ -188,33 +188,33 @@
         }
 
         // --- 5. 聊天：GET 请求绕过拦截 ---
-        try {
+        const userInput = document.getElementById('user-input');
+        const aiResponse = document.getElementById('ai-response');
+
+        userInput.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter' && userInput.value.trim() !== "") {
+                const prompt = userInput.value;
+                userInput.value = "";
+                userInput.placeholder = "思考中...";
+                
+                try {
                     const targetUrl = `${window.location.origin}/chat?prompt=${encodeURIComponent(prompt)}`;
                     const res = await fetch(targetUrl, { method: "GET", cache: "no-cache" });
                     
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     const data = await res.json();
-                    
-                    // 如果 Gemini 返回了错误对象
-                    if (data.error) {
-                        // 提取具体的错误信息，防止显示 [object Object]
-                        const detail = data.error.message || JSON.stringify(data.error);
-                        throw new Error(detail);
-                    }
+                    if (data.error) throw new Error(data.error);
 
-                    // 检查数据结构是否完整
-                    if (!data.candidates || !data.candidates[0].content) {
-                        throw new Error("Gemini 未能生成回复，请重试");
-                    }
-
-                    const text = data.candidates[0].content.parts[0].text;
-                    aiResponse.innerText = text;
+                    aiResponse.innerText = data.candidates[0].content.parts[0].text;
                     aiResponse.style.opacity = "1";
                     setTimeout(() => { aiResponse.style.opacity = "0"; }, 15000);
                 } catch (err) {
-                    // 这里的 err.message 会显示具体的 API 报错
-                    aiResponse.innerText = "错误提示: " + err.message;
+                    aiResponse.innerText = "状态: " + err.message;
                     aiResponse.style.opacity = "1";
                 }
+                userInput.placeholder = "和 Gemini 聊聊...";
+            }
+        });
 
         Render.run(render);
         Runner.run(Runner.create(), engine);
