@@ -11,7 +11,8 @@
             position: fixed;
             top: 40px;
             left: -200px;
-            font-family: "DengXian", "DengXian Light", "Microsoft YaHei Light", sans-serif;
+            /* 字体更新：优先调用圆体系列 */
+            font-family: "Hiragino Maru Gothic ProN", "STYuanti-SC-Light", "YouYuan", "Microsoft YaHei UI Light", sans-serif;
             font-size: 26px;
             font-weight: 300;
             color: #66ccff;
@@ -19,11 +20,12 @@
             pointer-events: none; 
             z-index: 10000;
             opacity: 0;
-            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease;
+            /* 更加轻柔的过渡效果 */
+            transition: all 0.7s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.5s ease;
         }
 
         .floating-text.show {
-            left: 40px;
+            left: 45px;
             opacity: 1;
         }
     </style>
@@ -55,7 +57,7 @@
 
         Composite.add(engine.world, [ground, ceiling, leftWall, rightWall, mouseConstraint]);
 
-        // 生成方块
+        // 点击生成
         Events.on(mouseConstraint, 'mousedown', (event) => {
             if (!mouseConstraint.body) {
                 const size = 40 + Math.random() * 40;
@@ -66,31 +68,24 @@
             }
         });
 
-        // --- 核心逻辑：原地长按检测 ---
+        // --- 核心逻辑：原地静止长按 ---
         let pressTimer;
         let timers = [];
         let currentTextNode = null;
         let startPos = { x: 0, y: 0 };
-        let isSequenceStarted = false;
 
         Events.on(mouseConstraint, 'mousedown', (event) => {
-            // 记录起始位置
             startPos = { x: event.mouse.position.x, y: event.mouse.position.y };
-            isSequenceStarted = false;
-
-            // 1. 触发第一阶段：等待 1000ms
             pressTimer = setTimeout(() => {
-                isSequenceStarted = true;
                 startSequence();
-            }, 1000);
+            }, 1000); // 计时起点：长按1000ms
         });
 
         Events.on(mouseConstraint, 'mousemove', (event) => {
-            // 如果鼠标移动距离超过 3 像素，视为非法移动，重置所有
             const dx = Math.abs(event.mouse.position.x - startPos.x);
             const dy = Math.abs(event.mouse.position.y - startPos.y);
-            
-            if (dx > 3 || dy > 3) {
+            // 只要移动超过微小距离就重置
+            if (dx > 2 || dy > 2) {
                 cancelEverything();
             }
         });
@@ -100,7 +95,7 @@
         });
 
         function startSequence() {
-            // 2. 120ms 后文字滑入
+            // 120ms 后滑入
             const t1 = setTimeout(() => {
                 if (!currentTextNode) {
                     currentTextNode = document.createElement('div');
@@ -111,11 +106,11 @@
                 }
             }, 120);
 
-            // 3. 3500ms 后清屏
+            // 120 + 3500ms 后清屏
             const t2 = setTimeout(() => {
                 clearPhysicsWorld();
                 removeTextSmoothly();
-            }, 120 + 3500);
+            }, 3620);
 
             timers.push(t1, t2);
         }
@@ -128,7 +123,7 @@
             if (currentTextNode) {
                 currentTextNode.classList.remove('show');
                 currentTextNode.style.opacity = '0';
-                currentTextNode.style.transform = 'translateX(-50px)';
+                currentTextNode.style.transform = 'translateX(-30px)';
                 const tempNode = currentTextNode;
                 setTimeout(() => { if(tempNode) tempNode.remove(); }, 600);
                 currentTextNode = null;
