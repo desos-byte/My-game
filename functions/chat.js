@@ -30,19 +30,19 @@ export async function onRequestGet(context) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        // --- 核心修正：系统指令强制“直接给结果” ---
+        // --- 核心修正：针对图片中出现的问题进行暴力约束 ---
         system_instruction: {
           parts: [{ 
-            text: "你是一个中文 AI 助手。必须使用简体中文回答所有问题。直接给出回答，严禁输出任何思考过程、推理步骤、大纲或 <|think|> 标签内的内容。如果用户问及事实，直接陈述结果。" 
+            text: "你是一个只说中文的助手。必须完全使用简体中文回答。直接给出最终结果，严禁输出任何 <|think|> 标签、思考过程、推理步骤或英文大纲。严禁使用任何 Markdown 格式（严禁使用 ** 或 # 等符号），确保输出是纯文本。" 
           }]
         },
         contents: [{
           parts: [{ text: prompt }]
         }],
         generationConfig: {
-          temperature: 0.8, // 保持一定的灵活性，但不至于胡言乱语
+          temperature: 0.5, // 降低随机性，让它说话更果断，减少废话
           maxOutputTokens: 2048,
-          topP: 0.95
+          topP: 0.8 // 稍微收紧，防止模型发散到英文推理上
         }
       })
     });
@@ -58,7 +58,7 @@ export async function onRequestGet(context) {
       });
     }
 
-    // 5. 成功：返回模型生成的纯净结果
+    // 5. 成功：返回结果
     return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' }
     });
