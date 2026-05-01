@@ -5,31 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
         body { margin: 0; overflow: hidden; background: #edf5f9; }
-        canvas { display: block; touch-action: none; }
+        
+        /* 提升 Canvas 整体渲染质感，解决图片缩放锯齿 */
+        canvas { 
+            display: block; 
+            touch-action: none; 
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: high-quality;
+        }
 
+        /* 极细、紧凑、圆润的文字样式 */
         .floating-text {
             position: fixed;
             top: 40px;
             left: -200px;
+            /* 优先调用最圆润的系统字体 */
             font-family: "Hiragino Maru Gothic ProN", "STYuanti-SC-Light", "YouYuan", sans-serif;
-            font-weight: 100;
+            font-weight: 100;           /* 粗细减半 */
             color: #66ccff;
             font-size: 24px;
-            letter-spacing: -0.8px;
-            line-height: 0.8;
+            letter-spacing: -0.8px;     /* 间距压缩 */
+            line-height: 0.8;           /* 上下距离压缩 */
             pointer-events: none;
             z-index: 10000;
             opacity: 0;
+            /* 入场与普通退出动画 */
             transition: all 0.7s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.5s ease;
         }
 
-        .floating-text.show { left: 45px; opacity: 1; }
+        .floating-text.show {
+            left: 45px;
+            opacity: 1;
+        }
 
+        /* 成功触发清场后的“烟雾消散”动画 */
         .floating-text.exit {
             opacity: 0;
             top: 15px;
             transform: scale(1.1) translateY(-10px);
-            filter: blur(6px);
+            filter: blur(6px);         /* 增加模糊感 */
             transition: all 0.8s ease-out;
         }
     </style>
@@ -39,13 +53,27 @@
     <script>
         const { Engine, Render, Runner, Bodies, Composite, Mouse, MouseConstraint, Body, Events } = Matter;
 
+        // --- 核心配置 ---
+        const TEXTURE_URL = 'https://files.catbox.moe/wq99z2.png';
+        const TARGET_SIZE = 85; // 头像物理直径
+        
         const engine = Engine.create();
+        
+        // --- 高清渲染配置 ---
         const render = Render.create({
             element: document.body,
             engine: engine,
-            options: { width: window.innerWidth, height: window.innerHeight, wireframes: false, background: '#edf5f9' }
+            options: {
+                width: window.innerWidth,
+                height: window.innerHeight,
+                wireframes: false,
+                background: '#edf5f9',
+                // 解决高分屏模糊的关键：适配设备像素比
+                pixelRatio: window.devicePixelRatio || 1
+            }
         });
 
+        // 边界设置
         const wallOptions = { isStatic: true, render: { visible: false } };
         const ground = Bodies.rectangle(window.innerWidth/2, window.innerHeight+30, window.innerWidth, 60, wallOptions);
         const ceiling = Bodies.rectangle(window.innerWidth/2, -30, window.innerWidth, 60, wallOptions);
@@ -60,23 +88,26 @@
 
         Composite.add(engine.world, [ground, ceiling, leftWall, rightWall, mouseConstraint]);
 
-        // --- 配置区 ---
-        const TEXTURE_URL = 'https://files.catbox.moe/wq99z2.png';
-        const TARGET_SIZE = 80; 
-        const IMG_ORIGIN = 1024; 
+        // 预加载贴图以防压缩变形
+        const img = new Image();
+        img.src = TEXTURE_URL;
 
+        // --- 生成逻辑 ---
         Events.on(mouseConstraint, 'mousedown', (event) => {
-            if (!mouseConstraint.body) {
-                // 使用圆形碰撞箱
+            if (!mouseConstraint.body && img.complete) {
                 const radius = TARGET_SIZE / 2;
+                // 根据图片真实比例动态计算缩放
+                const scaleX = TARGET_SIZE / img.width;
+                const scaleY = TARGET_SIZE / img.height;
+
                 const circleAvatar = Bodies.circle(event.mouse.position.x, event.mouse.position.y, radius, {
-                    restitution: 0.6,
+                    restitution: 0.5,
                     friction: 0.1,
                     render: {
                         sprite: {
                             texture: TEXTURE_URL,
-                            xScale: TARGET_SIZE / IMG_ORIGIN,
-                            yScale: TARGET_SIZE / IMG_ORIGIN
+                            xScale: scaleX,
+                            yScale: scaleY
                         }
                     }
                 });
@@ -84,21 +115,26 @@
             }
         });
 
-        // --- 长按检测与动画逻辑 ---
+        // --- 交互与动画控制 ---
         let pressTimer, timers = [], currentTextNode = null, startPos = { x: 0, y: 0 };
 
         Events.on(mouseConstraint, 'mousedown', (event) => {
             startPos = { x: event.mouse.position.x, y: event.mouse.position.y };
+            // 阶段一：等待1000ms
             pressTimer = setTimeout(() => startSequence(), 1000);
         });
 
         Events.on(mouseConstraint, 'mousemove', (event) => {
-            if (Math.abs(event.mouse.position.x - startPos.x) > 2 || Math.abs(event.mouse.position.y - startPos.y) > 2) cancelEverything();
+            // 原地检测：移动超过2像素则视为中断
+            const dx = Math.abs(event.mouse.position.x - startPos.x);
+            const dy = Math.abs(event.mouse.position.y - startPos.y);
+            if (dx > 2 || dy > 2) cancelEverything();
         });
 
         Events.on(mouseConstraint, 'mouseup', () => cancelEverything());
 
         function startSequence() {
+            // 阶段二：120ms后文字滑入
             const t1 = setTimeout(() => {
                 if (!currentTextNode) {
                     currentTextNode = document.createElement('div');
@@ -109,10 +145,14 @@
                 }
             }, 120);
 
+            // 阶段三：3500ms后执行清场
             const t2 = setTimeout(() => {
                 clearWithAnimation();
                 if (currentTextNode) currentTextNode.classList.add('exit');
-                setTimeout(() => { if(currentTextNode) currentTextNode.remove(); currentTextNode = null; }, 800);
+                setTimeout(() => { 
+                    if(currentTextNode) currentTextNode.remove(); 
+                    currentTextNode = null; 
+                }, 800);
             }, 3620);
             timers.push(t1, t2);
         }
@@ -122,6 +162,7 @@
             timers.forEach(t => clearTimeout(t));
             timers = [];
             if (currentTextNode) {
+                // 中断：快速滑走并变淡
                 currentTextNode.style.left = '-100px';
                 currentTextNode.style.opacity = '0';
                 const temp = currentTextNode;
@@ -131,14 +172,21 @@
         }
 
         function clearWithAnimation() {
-            Composite.allBodies(engine.world).filter(b => !b.isStatic).forEach(body => {
-                body.collisionFilter.mask = 0;
-                Body.setAngularVelocity(body, (Math.random()-0.5)*0.2);
+            const bodies = Composite.allBodies(engine.world).filter(b => !b.isStatic);
+            bodies.forEach(body => {
+                body.collisionFilter.mask = 0; // 禁用后续碰撞
+                Body.setAngularVelocity(body, (Math.random()-0.5)*0.2); // 微小旋转
+                
                 let s = 1.0;
                 const anim = setInterval(() => {
                     s -= 0.05;
-                    if (s <= 0) { Composite.remove(engine.world, body); clearInterval(anim); }
-                    else { Body.scale(body, 0.9, 0.9); body.render.opacity = s; }
+                    if (s <= 0) {
+                        Composite.remove(engine.world, body);
+                        clearInterval(anim);
+                    } else {
+                        Body.scale(body, 0.9, 0.9); // 向心收缩
+                        body.render.opacity = s;   // 逐渐透明
+                    }
                 }, 16);
             });
         }
