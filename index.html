@@ -7,26 +7,24 @@
         body { margin: 0; overflow: hidden; background: #edf5f9; }
         canvas { display: block; touch-action: none; }
 
-        /* 动态漂浮文字样式 */
+        /* 动态漂浮文字：等线、#66ccff、细体 */
         .floating-text {
             position: fixed;
             top: 40px;
             left: -200px;
-            /* 字体设置：等线、轻细、66ccff */
             font-family: "DengXian", "DengXian Light", "Microsoft YaHei Light", sans-serif;
             font-size: 26px;
             font-weight: 300;
             color: #66ccff;
             letter-spacing: 3px;
-            
-            /* 关键：允许鼠标穿透，这样文字不会挡住你拖拽方块 */
             pointer-events: none; 
-            
             z-index: 10000;
             opacity: 0;
-            transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            /* 赋予丝滑的进入和退出动画 */
+            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease;
         }
 
+        /* 激活状态 */
         .floating-text.show {
             left: 40px;
             opacity: 1;
@@ -43,92 +41,113 @@
         const render = Render.create({
             element: document.body,
             engine: engine,
-            options: {
-                width: window.innerWidth,
-                height: window.innerHeight,
-                wireframes: false,
-                background: '#edf5f9'
-            }
+            options: { width: window.innerWidth, height: window.innerHeight, wireframes: false, background: '#edf5f9' }
         });
 
-        // 墙壁
-        const wallThickness = 60;
+        // 基础环境
         const wallOptions = { isStatic: true, render: { fillStyle: '#edf5f9' } };
-        const ground = Bodies.rectangle(window.innerWidth / 2, window.innerHeight + wallThickness / 2, window.innerWidth, wallThickness, wallOptions);
-        const ceiling = Bodies.rectangle(window.innerWidth / 2, -wallThickness / 2, window.innerWidth, wallThickness, wallOptions);
-        const leftWall = Bodies.rectangle(-wallThickness / 2, window.innerHeight / 2, wallThickness, window.innerHeight, wallOptions);
-        const rightWall = Bodies.rectangle(window.innerWidth + wallThickness / 2, window.innerHeight / 2, wallThickness, window.innerHeight, wallOptions);
+        const ground = Bodies.rectangle(window.innerWidth/2, window.innerHeight+30, window.innerWidth, 60, wallOptions);
+        const ceiling = Bodies.rectangle(window.innerWidth/2, -30, window.innerWidth, 60, wallOptions);
+        const leftWall = Bodies.rectangle(-30, window.innerHeight/2, 60, window.innerHeight, wallOptions);
+        const rightWall = Bodies.rectangle(window.innerWidth+30, window.innerHeight/2, 60, window.innerHeight, wallOptions);
 
-        // 鼠标与拖拽逻辑 (保留)
         const mouse = Mouse.create(render.canvas);
         const mouseConstraint = MouseConstraint.create(engine, {
             mouse: mouse,
-            constraint: {
-                stiffness: 0.2,
-                render: { visible: false }
-            }
+            constraint: { stiffness: 0.2, render: { visible: false } }
         });
 
         Composite.add(engine.world, [ground, ceiling, leftWall, rightWall, mouseConstraint]);
 
-        // 点击生成方块
-        Events.on(mouseConstraint, 'mousedown', function(event) {
-            const mousePosition = event.mouse.position;
-            setTimeout(() => {
-                // 如果鼠标没有抓到现有的物体，才生成新方块
-                if (!mouseConstraint.body) {
-                    const size = 40 + Math.random() * 40;
-                    const newBox = Bodies.rectangle(mousePosition.x, mousePosition.y, size, size, {
-                        render: { fillStyle: '#' + Math.floor(Math.random() * 16777215).toString(16) }
-                    });
-                    Composite.add(engine.world, newBox);
-                }
-            }, 10);
+        // 生成方块
+        Events.on(mouseConstraint, 'mousedown', (event) => {
+            if (!mouseConstraint.body) {
+                const size = 40 + Math.random() * 40;
+                const newBox = Bodies.rectangle(event.mouse.position.x, event.mouse.position.y, size, size, {
+                    render: { fillStyle: '#' + Math.floor(Math.random()*16777215).toString(16) }
+                });
+                Composite.add(engine.world, newBox);
+            }
         });
 
-        // 初始方块
-        const box1 = Bodies.rectangle(window.innerWidth / 2 - 100, 100, 80, 80, { render: { fillStyle: '#e74c3c' } });
-        const box2 = Bodies.rectangle(window.innerWidth / 2, 50, 80, 80, { render: { fillStyle: '#2ecc71' } });
-        const box3 = Bodies.rectangle(window.innerWidth / 2 + 100, 0, 80, 80, { render: { fillStyle: '#3498db' } });
-        Composite.add(engine.world, [box1, box2, box3]);
+        // --- 核心：长按且不松手触发逻辑 ---
+        let pressTimer;
+        let timers = []; // 存储后续的计时器 ID
+        let currentTextNode = null;
 
-        Render.run(render);
-        Runner.run(Runner.create(), engine);
-        render.mouse = mouse;
+        Events.on(mouseConstraint, 'mousedown', () => {
+            // 1. 触发第一阶段：等待 1000ms
+            pressTimer = setTimeout(() => {
+                startSequence();
+            }, 1000);
+        });
 
-        // --- 核心逻辑：定时清屏与文字 ---
+        Events.on(mouseConstraint, 'mouseup', () => {
+            cancelEverything();
+        });
 
-        setTimeout(() => {
-            const textNode = document.createElement('div');
-            textNode.className = 'floating-text';
-            textNode.innerText = '不要了…';
-            document.body.appendChild(textNode);
-            requestAnimationFrame(() => textNode.classList.add('show'));
-        }, 1200);
+        function startSequence() {
+            // 2. 触发第二阶段：120ms 后文字出现
+            const t1 = setTimeout(() => {
+                currentTextNode = document.createElement('div');
+                currentTextNode.className = 'floating-text';
+                currentTextNode.innerText = '不要了…';
+                document.body.appendChild(currentTextNode);
+                requestAnimationFrame(() => currentTextNode.classList.add('show'));
+            }, 120);
 
-        setTimeout(() => {
-            // 清除方块
+            // 3. 触发第三阶段：再过 3500ms 执行清屏
+            const t2 = setTimeout(() => {
+                clearPhysicsWorld();
+                removeTextSmoothly();
+            }, 120 + 3500);
+
+            timers.push(t1, t2);
+        }
+
+        function cancelEverything() {
+            // 清除初始长按计时
+            clearTimeout(pressTimer);
+            
+            // 清除序列计时
+            timers.forEach(t => clearTimeout(t));
+            timers = [];
+
+            // 如果文字已经出来了，立刻移除
+            if (currentTextNode) {
+                currentTextNode.classList.remove('show');
+                currentTextNode.style.opacity = '0';
+                currentTextNode.style.transform = 'translateX(-50px)'; // 快速滑走
+                const tempNode = currentTextNode;
+                setTimeout(() => tempNode.remove(), 600);
+                currentTextNode = null;
+            }
+        }
+
+        function clearPhysicsWorld() {
             const allBodies = Composite.allBodies(engine.world);
             allBodies.forEach(body => {
                 if (!body.isStatic) Composite.remove(engine.world, body);
             });
+        }
 
-            // 文字消失
-            const textNode = document.querySelector('.floating-text');
-            if (textNode) {
-                textNode.style.opacity = '0';
-                textNode.style.transform = 'translateX(-20px)';
-                setTimeout(() => textNode.remove(), 800);
+        function removeTextSmoothly() {
+            if (currentTextNode) {
+                currentTextNode.style.opacity = '0';
+                setTimeout(() => {
+                    if (currentTextNode) currentTextNode.remove();
+                    currentTextNode = null;
+                }, 800);
             }
-        }, 3500);
+        }
+
+        // 启动
+        Render.run(render);
+        Runner.run(Runner.create(), engine);
 
         window.addEventListener('resize', () => {
             render.canvas.width = window.innerWidth;
             render.canvas.height = window.innerHeight;
-            Body.setPosition(ground, { x: window.innerWidth / 2, y: window.innerHeight + wallThickness / 2 });
-            Body.setPosition(ceiling, { x: window.innerWidth / 2, y: -wallThickness / 2 });
-            Body.setPosition(leftWall, { x: -wallThickness / 2, y: window.innerHeight / 2 });
-            Body.setPosition(rightWall, { x: window.innerWidth + wallThickness / 2, y: window.innerHeight / 2 });
         });
     </script>
 </body>
