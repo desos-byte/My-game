@@ -1,27 +1,10 @@
 export async function onRequestGet(context) {
-  // 1. 获取用户输入
   const { searchParams } = new URL(context.request.url);
   const prompt = searchParams.get('prompt');
-  
-  // 2. 读取环境变量 "api"
   const API_KEY = context.env.api; 
 
-  // --- 拦截无效请求 ---
-  if (!prompt) {
-    return new Response(JSON.stringify({ error: "请输入内容" }), { 
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+  if (!prompt) return new Response(JSON.stringify({ error: "请输入内容" }), { status: 400 });
 
-  if (!API_KEY) {
-    return new Response(JSON.stringify({ error: "未检测到 API 密钥，请检查环境变量配置" }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  // --- 3. 2026.04 发布的最强开放模型 Gemma 4 31B ---
   const modelId = "gemma-4-31b-it"; 
   const googleApi = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${API_KEY}`;
 
@@ -30,43 +13,30 @@ export async function onRequestGet(context) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        // --- 核心修正：针对图片中出现的问题进行暴力约束 ---
+        // --- 核心激进策略：禁止复述、禁止自检、禁止一切英文 ---
         system_instruction: {
           parts: [{ 
-            text: "你是一个只说中文的助手。必须完全使用简体中文回答。直接给出最终结果，严禁输出任何 <|think|> 标签、思考过程、推理步骤或英文大纲。严禁使用任何 Markdown 格式（严禁使用 ** 或 # 等符号），确保输出是纯文本。" 
+            text: "你是一个纯中文助理。严禁输出任何英文，包括但不限于推理过程、指令复述、约束确认、自检列表或说明。严禁使用 Markdown（如 ** 或 #）。必须直接输出最终的中文结果文字。" 
           }]
         },
         contents: [{
           parts: [{ text: prompt }]
         }],
         generationConfig: {
-          temperature: 0.5, // 降低随机性，让它说话更果断，减少废话
-          maxOutputTokens: 2048,
-          topP: 0.8 // 稍微收紧，防止模型发散到英文推理上
+          temperature: 0.3, // 进一步调低随机性，让它不再“发散”出多余的自检内容
+          maxOutputTokens: 1024,
+          topP: 0.1 // 极端采样，只选最可能的词，强力压制多余输出
         }
       })
     });
 
     const data = await response.json();
+    if (data.error) return new Response(JSON.stringify({ error: data.error.message }), { status: 500 });
 
-    // 4. 针对 Google API 错误的处理
-    if (data.error) {
-      return new Response(JSON.stringify({ 
-        error: `API 报错: ${data.error.message}` 
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // 5. 成功：返回结果
     return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' }
     });
-
   } catch (e) {
-    return new Response(JSON.stringify({ error: "Worker 运行异常: " + e.message }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
   }
 }
