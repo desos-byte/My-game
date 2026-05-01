@@ -13,29 +13,46 @@ export async function onRequestGet(context) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        // --- 核心激进策略：禁止复述、禁止自检、禁止一切英文 ---
         system_instruction: {
           parts: [{ 
-            text: "你是一个纯中文助理。严禁输出任何英文，包括但不限于推理过程、指令复述、约束确认、自检列表或说明。严禁使用 Markdown（如 ** 或 #）。必须直接输出最终的中文结果文字。" 
+            text: "你是一个纯中文助手。不要解释，不要复述，不要自检。直接输出回答。严禁输出英文。" 
           }]
         },
         contents: [{
           parts: [{ text: prompt }]
         }],
         generationConfig: {
-          temperature: 0.3, // 进一步调低随机性，让它不再“发散”出多余的自检内容
+          temperature: 0.1, // 降到最低，减少它“加戏”的概率
           maxOutputTokens: 1024,
-          topP: 0.1 // 极端采样，只选最可能的词，强力压制多余输出
+          topP: 0.1
         }
       })
     });
 
     const data = await response.json();
-    if (data.error) return new Response(JSON.stringify({ error: data.error.message }), { status: 500 });
+    
+    if (data.candidates && data.candidates[0].content) {
+      let rawText = data.candidates[0].content.parts[0].text;
+
+      // --- 关键修正：强效后端过滤 ---
+      // 1. 移除所有英文字母、问号、冒号组成的自检行 (例如 Is it pure Chinese? Yes.)
+      // 2. 移除所有括号及其中的内容 (例如 (Hello))
+      // 3. 移除 Markdown 符号
+      let cleanText = rawText
+        .replace(/[a-zA-Z\s\?\.]{3,}:?\s?(Yes|No|Hello|Greeting|Constraint|User input).*/gi, '') // 过滤自检行
+        .replace(/\([^\)]*\)/g, '') // 移除所有括号里的英文翻译
+        .replace(/[\*#_>`-]/g, '')  // 移除所有 Markdown 符号，解决字体粗细不一
+        .replace(/[a-zA-Z]{5,}/g, '') // 移除长段英文单词
+        .trim();
+
+      // 重新封装处理后的文本返回
+      data.candidates[0].content.parts[0].text = cleanText;
+    }
 
     return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' }
     });
+
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });
   }
