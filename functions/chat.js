@@ -15,14 +15,14 @@ export async function onRequestGet(context) {
       body: JSON.stringify({
         system_instruction: {
           parts: [{ 
-            text: "你是一个中文助理。直接回答问题。不要输出自检列表、不要确认约束条件。必须使用纯文本。" 
+            text: "你是中文助理。直接输出中文回答。严禁输出任何英文大纲、格式说明或自检确认。" 
           }]
         },
         contents: [{
           parts: [{ text: prompt }]
         }],
         generationConfig: {
-          temperature: 0.6, 
+          temperature: 0.4,
           maxOutputTokens: 1024
         }
       })
@@ -32,25 +32,40 @@ export async function onRequestGet(context) {
     
     if (data.candidates && data.candidates[0].content) {
       let rawText = data.candidates[0].content.parts[0].text;
+      const lines = rawText.split('\n');
+      
+      let startIndex = 0;
+      
+      // --- 核心：识别“大量输出中文”的起始点 ---
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
 
-      // --- 精准切除逻辑 ---
-      const cleanText = rawText.split('\n')
+        // 计算当前行的汉字数量
+        const chineseChars = (line.match(/[\u4e00-\u9fa5]/g) || []).length;
+        
+        // 如果一行内汉字数量超过 10 个，或者汉字比例超过 50%
+        // 这通常意味着模型开始正式回答，而不是在列 Topic: 这种提纲
+        if (chineseChars > 10 || (chineseChars / line.length > 0.5)) {
+          startIndex = i;
+          break;
+        }
+      }
+
+      // 1. 从识别到的“大量中文行”开始截取
+      let cleanLines = lines.slice(startIndex);
+
+      // 2. 进一步清理：过滤掉结尾可能出现的自检行 (Yes/No) 和 Markdown 符号
+      const resultText = cleanLines
         .filter(line => {
           const l = line.toLowerCase();
-          // 排除掉所有包含自检特征的行
-          const isChecklist = l.includes('constraint') || 
-                             l.includes('is it') || 
-                             l.includes('user says') || 
-                             l.includes('pure chinese') ||
-                             l.includes('yes.') ||
-                             l.includes('no.');
-          return !isChecklist && line.trim() !== ""; // 同时过滤掉空行
+          return !l.includes('is it') && !l.includes('yes.') && !l.includes('no.');
         })
-        .join('\n') // 重新组合
-        .replace(/[\*#_>`-]/g, '') // 删掉 Markdown 符号保证字体粗细一致
+        .join('\n')
+        .replace(/[\*#_>`-]/g, '') // 移除 Markdown，解决字体粗细不一
         .trim();
 
-      data.candidates[0].content.parts[0].text = cleanText || "未检测到有效回复，请重试";
+      data.candidates[0].content.parts[0].text = resultText;
     }
 
     return new Response(JSON.stringify(data), {
