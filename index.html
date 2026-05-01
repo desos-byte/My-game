@@ -1,61 +1,108 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>welcome!</title>
+    <title>Welcome to Workspace</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
         body { margin: 0; overflow: hidden; background: #edf5f9; }
-        canvas { 
-            display: block; 
-            touch-action: none; 
-            image-rendering: high-quality;
-        }
+        canvas { display: block; touch-action: none; image-rendering: high-quality; }
 
-        .floating-text {
-            position: fixed;
-            top: 40px;
-            left: -200px;
+        /* 统一文本样式：极细、紧凑、圆润 */
+        .text-base {
             font-family: "Hiragino Maru Gothic ProN", "STYuanti-SC-Light", "YouYuan", sans-serif;
             font-weight: 100;
             color: #66ccff;
-            font-size: 24px;
             letter-spacing: -0.8px;
-            line-height: 0.8;
+            line-height: 1.1;
             pointer-events: none;
+            position: fixed;
+            left: 45px;
             z-index: 10000;
+        }
+
+        /* 聊天输入框：全透明 */
+        #chat-container {
+            position: fixed;
+            top: 20px;
+            left: 40px;
+            z-index: 10001;
+        }
+        #user-input {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid rgba(102, 204, 255, 0.2);
+            color: #66ccff;
+            font-family: inherit;
+            font-weight: 100;
+            font-size: 16px;
+            outline: none;
+            width: 220px;
+            padding: 5px 0;
+            pointer-events: auto;
+        }
+        #user-input::placeholder { color: rgba(102, 204, 255, 0.3); }
+
+        /* “不要了”弹出位置 */
+        .floating-text {
+            top: 65px;
+            font-size: 24px;
             opacity: 0;
             transition: all 0.7s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.5s ease;
         }
-        .floating-text.show { left: 45px; opacity: 1; }
+        .floating-text.show { opacity: 1; left: 45px; }
         .floating-text.exit {
             opacity: 0;
-            top: 15px;
+            top: 40px;
             transform: scale(1.1) translateY(-10px);
             filter: blur(6px);
             transition: all 0.8s ease-out;
         }
+
+        /* AI 回复区域：在“不要了”下方 */
+        #ai-response {
+            top: 105px;
+            font-size: 17px;
+            max-width: 280px;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body>
+
+    <div id="chat-container">
+        <input type="text" id="user-input" placeholder="请输入文本" autocomplete="off">
+    </div>
+
+    <div id="dont-want" class="text-base floating-text">不要了…</div>
+    <div id="ai-response" class="text-base"></div>
+
+    <!-- 引入 Gemini SDK -->
+    <script type="importmap">
+    {
+        "imports": {
+            "@google/generative-ai": "https://esm.run/@google/generative-ai"
+        }
+    }
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
-    <script>
+
+    <script type="module">
+        import { GoogleGenerativeAI } from "@google/generative-ai";
+
+        // --- 1. 基础配置 ---
+        const API_KEY = "AIzaSyBShGtmp2aZ11L8aYbt5azvwsapKxmcOPo"; // 请在此处填入你的 API Key
+        const genAI = new GoogleGenerativeAI(API_KEY);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
         const { Engine, Render, Runner, Bodies, Composite, Mouse, MouseConstraint, Body, Events } = Matter;
-
-        // --- 配置区：图片数组 ---
-        const TEXTURE_SOURCES = [
-            'https://files.catbox.moe/wq99z2.png',  
-            'https://files.catbox.moe/c3jequ.png'   
-        ];
         const TARGET_SIZE = 85; 
+        const TEXTURE_SOURCES = [
+            'https://files.catbox.moe/wq99z2.png' // 你提供的最新头像
+        ];
 
-        // --- 图片预加载逻辑 ---
-        const loadedImages = [];
-        TEXTURE_SOURCES.forEach(url => {
-            const img = new Image();
-            img.src = url;
-            img.onload = () => loadedImages.push(img);
-        });
-
+        // --- 2. 物理引擎初始化 ---
         const engine = Engine.create();
         const render = Render.create({
             element: document.body,
@@ -70,12 +117,13 @@
         });
 
         const wallOptions = { isStatic: true, render: { visible: false } };
-        Composite.add(engine.world, [
+        const walls = [
             Bodies.rectangle(window.innerWidth/2, window.innerHeight+30, window.innerWidth, 60, wallOptions),
             Bodies.rectangle(window.innerWidth/2, -30, window.innerWidth, 60, wallOptions),
             Bodies.rectangle(-30, window.innerHeight/2, 60, window.innerHeight, wallOptions),
             Bodies.rectangle(window.innerWidth+30, window.innerHeight/2, 60, window.innerHeight, wallOptions)
-        ]);
+        ];
+        Composite.add(engine.world, walls);
 
         const mouse = Mouse.create(render.canvas);
         const mouseConstraint = MouseConstraint.create(engine, {
@@ -84,91 +132,118 @@
         });
         Composite.add(engine.world, mouseConstraint);
 
-        // --- 点击生成（随机抽取图片） ---
+        // --- 3. 图片加载管理 ---
+        let loadedImages = [];
+        function loadTextures() {
+            TEXTURE_SOURCES.forEach(url => {
+                const img = new Image();
+                img.src = url;
+                img.onload = () => loadedImages.push(img);
+            });
+        }
+        loadTextures();
+
+        // --- 4. 生成方块逻辑 ---
         Events.on(mouseConstraint, 'mousedown', (event) => {
             if (!mouseConstraint.body && loadedImages.length > 0) {
-                // 随机选择一张已加载的图片
                 const randomImg = loadedImages[Math.floor(Math.random() * loadedImages.length)];
-                
                 const radius = TARGET_SIZE / 2;
-                const scaleX = TARGET_SIZE / randomImg.width;
-                const scaleY = TARGET_SIZE / randomImg.height;
-
-                const circleAvatar = Bodies.circle(event.mouse.position.x, event.mouse.position.y, radius, {
+                
+                const circle = Bodies.circle(event.mouse.position.x, event.mouse.position.y, radius, {
                     restitution: 0.5,
                     render: {
                         sprite: {
                             texture: randomImg.src,
-                            xScale: scaleX,
-                            yScale: scaleY
+                            xScale: TARGET_SIZE / randomImg.width,
+                            yScale: TARGET_SIZE / randomImg.height
                         }
                     }
                 });
-                Composite.add(engine.world, circleAvatar);
+                Composite.add(engine.world, circle);
             }
         });
 
-        // --- 长按与消散逻辑 ---
-        let pressTimer, timers = [], currentTextNode = null, startPos = { x: 0, y: 0 };
+        // --- 5. AI 聊天与响应显示 ---
+        const userInput = document.getElementById('user-input');
+        const aiResponse = document.getElementById('ai-response');
+
+        userInput.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter' && userInput.value.trim() !== "") {
+                const prompt = userInput.value;
+                userInput.value = "";
+                userInput.placeholder = "思考中...";
+                
+                try {
+                    const result = await model.generateContent(prompt);
+                    const response = await result.response;
+                    const text = response.text();
+                    
+                    aiResponse.innerText = text;
+                    aiResponse.style.opacity = "1";
+                    
+                    // 15秒后自动淡出 AI 回复
+                    setTimeout(() => { aiResponse.style.opacity = "0"; }, 15000);
+                } catch (err) {
+                    console.error("Gemini 调用失败:", err);
+                    aiResponse.innerText = "暂时无法连接到 AI...";
+                    aiResponse.style.opacity = "1";
+                }
+                userInput.placeholder = "和 Gemini 聊聊...";
+            }
+        });
+
+        // --- 6. 长按“不要了”与消散动画 ---
+        let pressTimer, startPos = { x: 0, y: 0 };
+        const dontWant = document.getElementById('dont-want');
 
         Events.on(mouseConstraint, 'mousedown', (event) => {
             startPos = { x: event.mouse.position.x, y: event.mouse.position.y };
-            pressTimer = setTimeout(() => startSequence(), 1000);
+            pressTimer = setTimeout(() => {
+                dontWant.classList.remove('exit');
+                dontWant.classList.add('show');
+                clearAllBodies();
+            }, 1000);
         });
 
         Events.on(mouseConstraint, 'mousemove', (event) => {
-            if (Math.abs(event.mouse.position.x - startPos.x) > 2 || Math.abs(event.mouse.position.y - startPos.y) > 2) cancelEverything();
+            const dx = Math.abs(event.mouse.position.x - startPos.x);
+            const dy = Math.abs(event.mouse.position.y - startPos.y);
+            if (dx > 2 || dy > 2) {
+                clearTimeout(pressTimer);
+                dontWant.classList.remove('show');
+            }
         });
 
-        Events.on(mouseConstraint, 'mouseup', () => cancelEverything());
-
-        function startSequence() {
-            const t1 = setTimeout(() => {
-                if (!currentTextNode) {
-                    currentTextNode = document.createElement('div');
-                    currentTextNode.className = 'floating-text';
-                    currentTextNode.innerText = '不要了…';
-                    document.body.appendChild(currentTextNode);
-                    requestAnimationFrame(() => currentTextNode.classList.add('show'));
-                }
-            }, 120);
-
-            const t2 = setTimeout(() => {
-                clearWithAnimation();
-                if (currentTextNode) currentTextNode.classList.add('exit');
-                setTimeout(() => { if(currentTextNode) currentTextNode.remove(); currentTextNode = null; }, 800);
-            }, 3620);
-            timers.push(t1, t2);
-        }
-
-        function cancelEverything() {
+        Events.on(mouseConstraint, 'mouseup', () => {
             clearTimeout(pressTimer);
-            timers.forEach(t => clearTimeout(t));
-            timers = [];
-            if (currentTextNode) {
-                currentTextNode.style.left = '-100px';
-                currentTextNode.style.opacity = '0';
-                const temp = currentTextNode;
-                setTimeout(() => temp.remove(), 600);
-                currentTextNode = null;
+            if (dontWant.classList.contains('show')) {
+                dontWant.classList.add('exit');
+                setTimeout(() => dontWant.classList.remove('show'), 800);
             }
-        }
+        });
 
-        function clearWithAnimation() {
-            Composite.allBodies(engine.world).filter(b => !b.isStatic).forEach(body => {
+        function clearAllBodies() {
+            const bodies = Composite.allBodies(engine.world).filter(b => !b.isStatic);
+            bodies.forEach(body => {
                 body.collisionFilter.mask = 0;
                 Body.setAngularVelocity(body, (Math.random()-0.5)*0.2);
                 let s = 1.0;
                 const anim = setInterval(() => {
                     s -= 0.05;
-                    if (s <= 0) { Composite.remove(engine.world, body); clearInterval(anim); }
-                    else { Body.scale(body, 0.9, 0.9); body.render.opacity = s; }
+                    if (s <= 0) {
+                        Composite.remove(engine.world, body);
+                        clearInterval(anim);
+                    } else {
+                        Body.scale(body, 0.92, 0.92);
+                        body.render.opacity = s;
+                    }
                 }, 16);
             });
         }
 
         Render.run(render);
         Runner.run(Runner.create(), engine);
+
         window.addEventListener('resize', () => {
             render.canvas.width = window.innerWidth;
             render.canvas.height = window.innerHeight;
