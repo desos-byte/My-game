@@ -15,7 +15,7 @@ export async function onRequestGet(context) {
       body: JSON.stringify({
         system_instruction: {
           parts: [{ 
-            text: "你是中文助理。直接输出中文回答。严禁输出任何英文大纲、格式说明或自检确认。" 
+            text: "你是中文助理。直接开始回答，不要任何前言和大纲。" 
           }]
         },
         contents: [{
@@ -32,40 +32,46 @@ export async function onRequestGet(context) {
     
     if (data.candidates && data.candidates[0].content) {
       let rawText = data.candidates[0].content.parts[0].text;
-      const lines = rawText.split('\n');
+      
+      // 1. 按行拆分
+      let lines = rawText.split('\n');
+      
+      // 2. 先强制删掉前三行 (Blind Cut)
+      let shiftedLines = lines.slice(3);
       
       let startIndex = 0;
-      
-      // --- 核心：识别“大量输出中文”的起始点 ---
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
+      let foundContent = false;
+
+      // 3. 在剩下的行里寻找中文爆发点 (Density Check)
+      for (let i = 0; i < shiftedLines.length; i++) {
+        const line = shiftedLines[i].trim();
         if (!line) continue;
 
-        // 计算当前行的汉字数量
         const chineseChars = (line.match(/[\u4e00-\u9fa5]/g) || []).length;
         
-        // 如果一行内汉字数量超过 10 个，或者汉字比例超过 50%
-        // 这通常意味着模型开始正式回答，而不是在列 Topic: 这种提纲
-        if (chineseChars > 10 || (chineseChars / line.length > 0.5)) {
+        // 如果该行汉字多于 8 个，认为正式进入中文正文
+        if (chineseChars > 8) {
           startIndex = i;
+          foundContent = true;
           break;
         }
       }
 
-      // 1. 从识别到的“大量中文行”开始截取
-      let cleanLines = lines.slice(startIndex);
+      // 如果没找到爆发点，就保底显示所有切除后的行；找到了就从爆发点开始
+      let finalLines = foundContent ? shiftedLines.slice(startIndex) : shiftedLines;
 
-      // 2. 进一步清理：过滤掉结尾可能出现的自检行 (Yes/No) 和 Markdown 符号
-      const resultText = cleanLines
+      // 4. 清洗：干掉自检行、Markdown 符号、空行
+      const resultText = finalLines
         .filter(line => {
           const l = line.toLowerCase();
-          return !l.includes('is it') && !l.includes('yes.') && !l.includes('no.');
+          const isJunk = l.includes('is it') || l.includes('yes.') || l.includes('no.') || l.includes('constraint');
+          return !isJunk && line.trim() !== ""; 
         })
         .join('\n')
-        .replace(/[\*#_>`-]/g, '') // 移除 Markdown，解决字体粗细不一
+        .replace(/[\*#_>`-]/g, '') // 确保字体厚度统一，不触发 Markdown 加粗
         .trim();
 
-      data.candidates[0].content.parts[0].text = resultText;
+      data.candidates[0].content.parts[0].text = resultText || "内容处理中...";
     }
 
     return new Response(JSON.stringify(data), {
