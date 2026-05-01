@@ -4,122 +4,36 @@
     <title>welcome!</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        /* 基础页面设置 */
-/* 基础页面设置 */
-body { 
-    margin: 0; 
-    overflow: hidden; 
-    background: #edf5f9; 
-}
+        body { margin: 0; overflow: hidden; background: #edf5f9; }
+        canvas { display: block; touch-action: none; }
 
-canvas { 
-    display: block; 
-    touch-action: none; 
-}
+        /* 动态漂浮文字样式 */
+        .floating-text {
+            position: fixed;
+            top: 40px;
+            left: -200px;
+            /* 字体设置：等线、轻细、66ccff */
+            font-family: "DengXian", "DengXian Light", "Microsoft YaHei Light", sans-serif;
+            font-size: 26px;
+            font-weight: 300;
+            color: #66ccff;
+            letter-spacing: 3px;
+            
+            /* 关键：允许鼠标穿透，这样文字不会挡住你拖拽方块 */
+            pointer-events: none; 
+            
+            z-index: 10000;
+            opacity: 0;
+            transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
 
-/* 1. 遮罩层：完全透明，鼠标可穿透 */
-#custom-modal {
-    display: none; 
-    position: fixed;
-    top: 0; left: 0; 
-    width: 100%; height: 100%;
-    background: transparent; 
-    z-index: 9999;
-    pointer-events: none;
-}
-
-/* 2. 弹窗主体：横版1.41:1、直角、极高透明 */
-.modal-content {
-    display: flex;
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: auto;    /* 恢复弹窗自身的点击和拖拽 */
-    
-    /* 形状与比例 */
-    width: 450px;
-    aspect-ratio: 1.41 / 1;
-    border-radius: 0;        /* 彻底直角 */
-    
-    /* 极高透明度与磨砂质感 */
-    background: rgba(255, 255, 255, 0.12); /* 降低到12%，更透 */
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    
-    /* 边框与阴影 */
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
-    
-    /* 字体：指定等线，字重改小 */
-    font-family: "DengXian", "DengXian Light", "Microsoft YaHei Light", sans-serif;
-    font-weight: 300;        /* 减小字重，使其更纤细 */
-    
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
-    text-align: center;
-    cursor: move;
-    box-sizing: border-box;
-    color: #444;             /* 深灰文字 */
-}
-
-/* 3. 标题微调 */
-.modal-content h3 {
-    margin: 0 0 12px 0;
-    font-size: 26px;
-    font-weight: 300;        /* 标题也保持纤细 */
-    color: #555;
-    letter-spacing: 2px;     /* 增加字间距更显可爱/空灵 */
-}
-
-/* 4. 正文微调 */
-.modal-content p {
-    margin: 0 0 20px 0;
-    font-size: 15px;
-    font-weight: 300;
-    opacity: 0.8;
-}
-
-/* 5. 按钮：极浅灰色、直角、纤细等线 */
-.modal-content button {
-    border-radius: 0;
-    margin: 10px;
-    padding: 10px 30px;
-    
-    background: rgba(245, 245, 245, 0.35); 
-    color: #666;
-    border: 1px solid rgba(200, 200, 200, 0.2);
-    
-    cursor: pointer;
-    font-family: inherit;    /* 继承等线体 */
-    font-weight: 300;        /* 按钮文字也纤细 */
-    font-size: 14px;
-    transition: all 0.3s ease;
-    outline: none;
-}
-
-/* 按钮交互 */
-.modal-content button:hover {
-    background: rgba(255, 255, 255, 0.7); 
-    border-color: rgba(255, 255, 255, 0.5);
-    color: #222;
-}
-
-.modal-content button:active {
-    background: rgba(200, 200, 200, 0.4);
-    transform: translateY(1px);
-}
+        .floating-text.show {
+            left: 40px;
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
-    <div id="custom-modal">
-        <div class="modal-content" id="modal-body">
-            <h3>不要了…</h3>
-            <button class="btn-clear interactable" id="confirm-clear">嗯</button>
-            <button class="btn-cancel interactable" id="cancel-clear">我也要删吗</button>
-        </div>
-    </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
@@ -145,18 +59,23 @@ canvas {
         const leftWall = Bodies.rectangle(-wallThickness / 2, window.innerHeight / 2, wallThickness, window.innerHeight, wallOptions);
         const rightWall = Bodies.rectangle(window.innerWidth + wallThickness / 2, window.innerHeight / 2, wallThickness, window.innerHeight, wallOptions);
 
+        // 鼠标与拖拽逻辑 (保留)
         const mouse = Mouse.create(render.canvas);
         const mouseConstraint = MouseConstraint.create(engine, {
             mouse: mouse,
-            constraint: { stiffness: 0.2, render: { visible: false } }
+            constraint: {
+                stiffness: 0.2,
+                render: { visible: false }
+            }
         });
 
         Composite.add(engine.world, [ground, ceiling, leftWall, rightWall, mouseConstraint]);
 
-        // 点击生成逻辑
+        // 点击生成方块
         Events.on(mouseConstraint, 'mousedown', function(event) {
             const mousePosition = event.mouse.position;
             setTimeout(() => {
+                // 如果鼠标没有抓到现有的物体，才生成新方块
                 if (!mouseConstraint.body) {
                     const size = 40 + Math.random() * 40;
                     const newBox = Bodies.rectangle(mousePosition.x, mousePosition.y, size, size, {
@@ -177,57 +96,31 @@ canvas {
         Runner.run(Runner.create(), engine);
         render.mouse = mouse;
 
-        // --- 长按弹出逻辑 ---
-        let pressTimer;
-        const modal = document.getElementById('custom-modal');
+        // --- 核心逻辑：定时清屏与文字 ---
 
-        const startPress = () => { pressTimer = setTimeout(() => { modal.style.display = 'block'; }, 3000); };
-        const endPress = () => { clearTimeout(pressTimer); };
+        setTimeout(() => {
+            const textNode = document.createElement('div');
+            textNode.className = 'floating-text';
+            textNode.innerText = '不要了…';
+            document.body.appendChild(textNode);
+            requestAnimationFrame(() => textNode.classList.add('show'));
+        }, 1200);
 
-        render.canvas.addEventListener('mousedown', startPress);
-        render.canvas.addEventListener('touchstart', startPress);
-        window.addEventListener('mouseup', endPress);
-        window.addEventListener('touchend', endPress);
+        setTimeout(() => {
+            // 清除方块
+            const allBodies = Composite.allBodies(engine.world);
+            allBodies.forEach(body => {
+                if (!body.isStatic) Composite.remove(engine.world, body);
+            });
 
-        // --- 拖拽弹窗逻辑 ---
-        const modalBody = document.getElementById('modal-body');
-        let isDragging = false, offsetX, offsetY;
-
-        const moveStart = (e) => {
-            if (e.target.classList.contains('interactable')) return;
-            isDragging = true;
-            const clientX = e.clientX || e.touches[0].clientX;
-            const clientY = e.clientY || e.touches[0].clientY;
-            const rect = modalBody.getBoundingClientRect();
-            offsetX = clientX - rect.left;
-            offsetY = clientY - rect.top;
-            modalBody.style.transform = 'none';
-            modalBody.style.left = rect.left + 'px';
-            modalBody.style.top = rect.top + 'px';
-        };
-
-        const moveAction = (e) => {
-            if (!isDragging) return;
-            const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-            const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
-            modalBody.style.left = (clientX - offsetX) + 'px';
-            modalBody.style.top = (clientY - offsetY) + 'px';
-        };
-
-        modalBody.addEventListener('mousedown', moveStart);
-        modalBody.addEventListener('touchstart', moveStart);
-        window.addEventListener('mousemove', moveAction);
-        window.addEventListener('touchmove', moveAction, { passive: false });
-        window.addEventListener('mouseup', () => isDragging = false);
-        window.addEventListener('touchend', () => isDragging = false);
-
-        // --- 按钮功能 ---
-        document.getElementById('confirm-clear').onclick = () => {
-            const bodies = Composite.allBodies(engine.world);
-            bodies.forEach(b => { if (!b.isStatic) Composite.remove(engine.world, b); });
-            modal.style.display = 'none';
-        };
-        document.getElementById('cancel-clear').onclick = () => { modal.style.display = 'none'; };
+            // 文字消失
+            const textNode = document.querySelector('.floating-text');
+            if (textNode) {
+                textNode.style.opacity = '0';
+                textNode.style.transform = 'translateX(-20px)';
+                setTimeout(() => textNode.remove(), 800);
+            }
+        }, 3500);
 
         window.addEventListener('resize', () => {
             render.canvas.width = window.innerWidth;
