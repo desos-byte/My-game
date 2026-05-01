@@ -204,15 +204,28 @@
                 userInput.placeholder = "思考中...";
                 
                 try {
-                    // 自动适应当前环境域名，并添加 cache: "no-cache" 绕过某些浏览器的缓存限制
-                    const res = await fetch(window.location.origin + "/chat", {
-                        method: "POST",
-                        cache: "no-cache",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }]
-                        })
+                    // 改用 GET 请求，将内容挂在 URL 后面
+                    const targetUrl = `${window.location.origin}/chat?prompt=${encodeURIComponent(prompt)}`;
+                    
+                    const res = await fetch(targetUrl, {
+                        method: "GET",
+                        cache: "no-cache"
                     });
+                    
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+
+                    const text = data.candidates[0].content.parts[0].text;
+                    aiResponse.innerText = text;
+                    aiResponse.style.opacity = "1";
+                    
+                    setTimeout(() => { aiResponse.style.opacity = "0"; }, 15000);
+                } catch (err) {
+                    aiResponse.innerText = "状态: " + err.message;
+                    aiResponse.style.opacity = "1";
+                }
                     
                     if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
 
