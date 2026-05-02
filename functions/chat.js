@@ -5,14 +5,14 @@ export async function onRequestGet(context) {
 
   if (!prompt) return new Response(JSON.stringify({ error: "请输入内容" }), { status: 400 });
 
-  // --- 模型选择逻辑：根据最新 API 规范，添加 -preview 后缀 ---
-  let modelId = "gemini-3-flash-preview"; // 默认
+  // --- 模型选择逻辑：默认 lite，句首有 / 则切换为非 lite ---
+  let modelId = "gemini-3.1-flash-lite-preview"; // 默认使用 lite
   let cleanPrompt = prompt;
 
-  if (prompt.startsWith('(lite)') || prompt.startsWith('（lite）')) {
-    modelId = "gemini-3.1-flash-lite-preview";
-    // 删掉前缀，避免干扰模型回答
-    cleanPrompt = prompt.replace(/^[(（]lite[)）]\s*/i, '');
+  if (prompt.startsWith('/')) {
+    modelId = "gemini-3-flash-preview"; // 检测到斜杠，切换到非 lite
+    // 删掉斜杠前缀，避免干扰模型回答
+    cleanPrompt = prompt.replace(/^\/\s*/, '');
   }
 
   const googleApi = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${API_KEY}`;
