@@ -5,16 +5,18 @@ export async function onRequestGet(context) {
 
   if (!prompt) return new Response(JSON.stringify({ error: "请输入内容" }), { status: 400 });
 
-  // --- 模型选择逻辑：检测 (lite) 或 （lite） ---
-  let modelId = "gemini-3-flash"; // 默认
+  // --- 模型选择逻辑：使用最新的官方 ID 别名 ---
+  // 修正：gemini-3-flash -> gemini-3-flash-latest
+  let modelId = "gemini-3-flash-latest"; 
   let cleanPrompt = prompt;
 
   if (prompt.startsWith('(lite)') || prompt.startsWith('（lite）')) {
-    modelId = "gemini-3.1-flash-lite";
-    // 删掉前缀，避免干扰模型回答
+    // 修正：gemini-3.1-flash-lite -> gemini-3.1-flash-lite-latest
+    modelId = "gemini-3.1-flash-lite-latest";
     cleanPrompt = prompt.replace(/^[(（]lite[)）]\s*/i, '');
   }
 
+  // 拼接 API 地址
   const googleApi = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${API_KEY}`;
 
   try {
@@ -39,10 +41,15 @@ export async function onRequestGet(context) {
 
     const data = await response.json();
     
+    // 如果返回了错误信息（比如模型依然找不到），直接把报错抛给前端方便排查
+    if (data.error) {
+      return new Response(JSON.stringify({ error: data.error.message }), { status: response.status });
+    }
+
     if (data.candidates && data.candidates[0].content) {
       let rawText = data.candidates[0].content.parts[0].text;
 
-      // 最后的格式清洗：移除所有 Markdown 符号以适配前端 CSS (weight: 600)
+      // 最后的格式清洗：移除所有 Markdown 符号
       const resultText = rawText
         .replace(/[\*#_>`-]/g, '')
         .trim();
