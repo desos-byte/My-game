@@ -5,7 +5,16 @@ export async function onRequestGet(context) {
 
   if (!prompt) return new Response(JSON.stringify({ error: "请输入内容" }), { status: 400 });
 
-  const modelId = "gemma-4-31b-it"; 
+  // --- 模型选择逻辑：检测 (lite) 或 （lite） ---
+  let modelId = "gemini-3-flash"; // 默认
+  let cleanPrompt = prompt;
+
+  if (prompt.startsWith('(lite)') || prompt.startsWith('（lite）')) {
+    modelId = "gemini-3.1-flash-lite";
+    // 删掉前缀，避免干扰模型回答
+    cleanPrompt = prompt.replace(/^[(（]lite[)）]\s*/i, '');
+  }
+
   const googleApi = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${API_KEY}`;
 
   try {
@@ -15,14 +24,14 @@ export async function onRequestGet(context) {
       body: JSON.stringify({
         system_instruction: {
           parts: [{ 
-            text: "你是中文助理。直接回答问题。严禁输出英文大纲、格式说明或自检。回答必须是纯文本中文。" 
+            text: "你是中文助理。直接输出中文回答，严禁输出任何 Markdown 符号（如 *、#、` 等）。确保文字厚实、连续。" 
           }]
         },
         contents: [{
-          parts: [{ text: prompt }]
+          parts: [{ text: cleanPrompt }]
         }],
         generationConfig: {
-          temperature: 0.4,
+          temperature: 0.6,
           maxOutputTokens: 1024
         }
       })
@@ -32,49 +41,13 @@ export async function onRequestGet(context) {
     
     if (data.candidates && data.candidates[0].content) {
       let rawText = data.candidates[0].content.parts[0].text;
-      let lines = rawText.split('\n');
-      
-      // 1. 强制盲切前三行
-      let shiftedLines = lines.slice(3);
-      
-      let startIndex = 0;
-      let foundContent = false;
 
-      // 2. 字节爆发点识别 (汉字字节数 > 总字节数 * 60%)
-      for (let i = 0; i < shiftedLines.length; i++) {
-        const line = shiftedLines[i].trim();
-        if (!line) continue;
-
-        // 使用 TextEncoder 获取字节长度
-        const encoder = new TextEncoder();
-        const totalBytes = encoder.encode(line).length;
-        
-        // 匹配汉字并计算其字节数（每个汉字 3 字节）
-        const chineseMatch = line.match(/[\u4e00-\u9fa5]/g);
-        const chineseBytes = chineseMatch ? chineseMatch.length * 3 : 0;
-
-        // 判断比例是否超过 60%
-        if (totalBytes > 0 && (chineseBytes / totalBytes) >= 0.6) {
-          startIndex = i;
-          foundContent = true;
-          break;
-        }
-      }
-
-      // 3. 截取并清洗
-      let finalLines = foundContent ? shiftedLines.slice(startIndex) : shiftedLines;
-
-      const resultText = finalLines
-        .filter(line => {
-          const l = line.toLowerCase();
-          // 进一步剔除残余的英文自检行
-          return !l.includes('is it') && !l.includes('yes.') && !l.includes('no.') && line.trim() !== "";
-        })
-        .join('\n')
-        .replace(/[\*#_>`-]/g, '') // 移除 Markdown 符号，配合 CSS 保持字体厚度统一
+      // 最后的格式清洗：移除所有 Markdown 符号以适配前端 CSS (weight: 600)
+      const resultText = rawText
+        .replace(/[\*#_>`-]/g, '')
         .trim();
 
-      data.candidates[0].content.parts[0].text = resultText || "未检测到有效中文回答。";
+      data.candidates[0].content.parts[0].text = resultText;
     }
 
     return new Response(JSON.stringify(data), {
