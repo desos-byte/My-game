@@ -24,14 +24,14 @@ export async function onRequestGet(context) {
       body: JSON.stringify({
         system_instruction: {
           parts: [{ 
-            text: "你是中文助理。直接输出中文回答，严禁输出任何 Markdown 符号（如 *、#、` 等）。确保文字厚实、连续。" 
+            text: "使用中文，严禁输出任何 Markdown 符号（如 *、#、` 等）。确保文字厚实、连续。" 
           }]
         },
         contents: [{
           parts: [{ text: cleanPrompt }]
         }],
         generationConfig: {
-          temperature: 0.6,
+          temperature: 1.0,
           maxOutputTokens: 1024
         }
       })
