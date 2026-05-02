@@ -32,7 +32,7 @@ export async function onRequestGet(context) {
         }],
         generationConfig: {
           temperature: 1.0,
-          maxOutputTokens: 1024
+          maxOutputTokens: 2048
         }
       })
     });
