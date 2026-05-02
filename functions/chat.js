@@ -24,7 +24,7 @@ export async function onRequestGet(context) {
       body: JSON.stringify({
         system_instruction: {
           parts: [{ 
-            text: "使用中文，严禁输出任何 Markdown 符号（如 *、#、` 等）。确保文字厚实、连续。" 
+            text: "主要使用中文，严禁输出任何 Markdown 符号（如 *、#、` 等）。表现得更接近人类。" 
           }]
         },
         contents: [{
