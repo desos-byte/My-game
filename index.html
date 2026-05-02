@@ -4,265 +4,195 @@
     <title>welcome!</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; overflow: hidden; background: #edf5f9; }
-        canvas { 
-            display: block; 
-            touch-action: none; 
-            image-rendering: high-quality;
-        }
+        body { margin: 0; overflow: hidden; background: #edf5f9; }[cite: 2]
+        canvas { display: block; touch-action: none; image-rendering: high-quality; }[cite: 2]
 
-        /* 你的长按悬浮文字原版样式 */
         .floating-text {
-            position: fixed;
-            top: 40px;
-            left: -200px;
+            position: fixed; top: 40px; left: -200px;
             font-family: "Yuanti SC", "YouYuan", sans-serif;
-            font-weight: 400;
-            color: #66ccff;
-            font-size: 24px;
-            letter-spacing: -0.8px;
-            line-height: 0.8;
-            pointer-events: none;
-            z-index: 10000;
-            opacity: 0;
+            font-weight: 400; color: #66ccff; font-size: 24px;
+            letter-spacing: -0.8px; line-height: 0.8;
+            pointer-events: none; z-index: 10000; opacity: 0;
             transition: all 0.7s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.5s ease;
-        }
-        .floating-text.show { left: 45px; opacity: 1; }
+        }[cite: 2]
+        .floating-text.show { left: 45px; opacity: 1; }[cite: 2]
         .floating-text.exit {
-            opacity: 0;
-            top: 15px;
-            transform: scale(1.1) translateY(-10px);
-            filter: blur(6px);
-            transition: all 0.8s ease-out;
-        }
+            opacity: 0; top: 15px; transform: scale(1.1) translateY(-10px);
+            filter: blur(6px); transition: all 0.8s ease-out;
+        }[cite: 2]
 
-        /* --- 新增：AI 聊天相关样式 --- */
         .text-base {
-            font-family: "Yuanti SC", "YouYuan", sans-serif;
-            font-weight: 400;
-            color: #66ccff;
-            letter-spacing: -0.8px;
-            line-height: 1.1;
-            /* 改为 auto 以便响应点击 */
-            pointer-events: auto; 
-            position: fixed;
-            left: 45px;
-            z-index: 10000;
-            cursor: pointer; /* 鼠标悬停显示手型提示可点击 */
-        }
-        #chat-container {
-            position: fixed;
-            top: 20px;
-            left: 40px;
-            z-index: 10001;
-        }
+            font-family: "Yuanti SC", "YouYuan", sans-serif; font-weight: 400;
+            color: #66ccff; letter-spacing: -0.8px; line-height: 1.1;
+            pointer-events: auto; position: fixed; left: 45px;
+            z-index: 10000; cursor: pointer;
+        }[cite: 2]
+        #chat-container { position: fixed; top: 20px; left: 40px; z-index: 10001; }[cite: 2]
         #user-input {
-            background: transparent;
-            border: none;
+            background: transparent; border: none;
             border-bottom: 1px solid rgba(102, 204, 255, 0.2);
-            color: #66ccff;
-            font-family: inherit;
-            font-weight: 100;
-            font-size: 16px;
-            outline: none;
-            width: 220px;
-            padding: 5px 0;
-            pointer-events: auto;
-        }
-        #user-input::placeholder { color: rgba(102, 204, 255, 0.3); }
+            color: #66ccff; font-family: inherit; font-weight: 100;
+            font-size: 16px; outline: none; width: 220px;
+            padding: 5px 0; pointer-events: auto;
+        }[cite: 2]
+        #user-input::placeholder { color: rgba(102, 204, 255, 0.3); }[cite: 2]
 
         #ai-response {
-            top: 105px; 
-            font-size: 17px;
-            max-width: 280px;
-            opacity: 0;
-            transition: opacity 0.5s ease;
-            white-space: pre-wrap;
+            top: 105px; font-size: 17px; max-width: 280px;
+            opacity: 0; transition: opacity 0.5s ease; white-space: pre-wrap;
+        }[cite: 2]
+        
+        #ai-response img {
+            max-width: 100%; border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(102, 204, 255, 0.2);
+            margin-top: 5px; pointer-events: none;
         }
     </style>
 </head>
 <body>
 
     <div id="chat-container">
-        <input type="text" id="user-input" placeholder="和 Gemini 聊聊..." autocomplete="off">
+        <input type="text" id="user-input" placeholder="和 Gemini 聊聊..." autocomplete="off">[cite: 2]
     </div>
-    <div id="ai-response" class="text-base"></div>
+    <div id="ai-response" class="text-base"></div>[cite: 2]
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>[cite: 2]
     <script>
-        const { Engine, Render, Runner, Bodies, Composite, Mouse, MouseConstraint, Body, Events } = Matter;
-
-        const TEXTURE_SOURCES = [
-            'https://files.catbox.moe/wq99z2.png',
-            'https://files.catbox.moe/c3jequ.png'
-        ];
+        const { Engine, Render, Runner, Bodies, Composite, Mouse, MouseConstraint, Body, Events } = Matter;[cite: 2]
+        const TEXTURE_SOURCES = ['https://files.catbox.moe/wq99z2.png', 'https://files.catbox.moe/c3jequ.png'];[cite: 2]
         const TARGET_SIZE = 85; 
 
         const loadedImages = [];
         TEXTURE_SOURCES.forEach(url => {
-            const img = new Image();
-            img.src = url;
+            const img = new Image(); img.src = url;
             img.onload = () => loadedImages.push(img);
-        });
-
-        const engine = Engine.create();
+        });[cite: 2]
+        
+        const engine = Engine.create();[cite: 2]
         const render = Render.create({
-            element: document.body,
-            engine: engine,
+            element: document.body, engine: engine,
             options: {
-                width: window.innerWidth,
-                height: window.innerHeight,
-                wireframes: false,
-                background: '#edf5f9',
+                width: window.innerWidth, height: window.innerHeight,
+                wireframes: false, background: '#edf5f9',
                 pixelRatio: window.devicePixelRatio || 1
             }
-        });
-
-        const wallOptions = { isStatic: true, render: { visible: false } };
+        });[cite: 2]
+        
+        const wallOptions = { isStatic: true, render: { visible: false } };[cite: 2]
         Composite.add(engine.world, [
             Bodies.rectangle(window.innerWidth/2, window.innerHeight+30, window.innerWidth, 60, wallOptions),
             Bodies.rectangle(window.innerWidth/2, -30, window.innerWidth, 60, wallOptions),
             Bodies.rectangle(-30, window.innerHeight/2, 60, window.innerHeight, wallOptions),
             Bodies.rectangle(window.innerWidth+30, window.innerHeight/2, 60, window.innerHeight, wallOptions)
-        ]);
-
-        const mouse = Mouse.create(render.canvas);
+        ]);[cite: 2]
+        
+        const mouse = Mouse.create(render.canvas);[cite: 2]
         const mouseConstraint = MouseConstraint.create(engine, {
-            mouse: mouse,
-            constraint: { stiffness: 0.2, render: { visible: false } }
-        });
-        Composite.add(engine.world, mouseConstraint);
+            mouse: mouse, constraint: { stiffness: 0.2, render: { visible: false } }
+        });[cite: 2]
+        Composite.add(engine.world, mouseConstraint);[cite: 2]
 
         Events.on(mouseConstraint, 'mousedown', (event) => {
             if (!mouseConstraint.body && loadedImages.length > 0) {
                 const randomImg = loadedImages[Math.floor(Math.random() * loadedImages.length)];
                 const radius = TARGET_SIZE / 2;
-                const scaleX = TARGET_SIZE / randomImg.width;
-                const scaleY = TARGET_SIZE / randomImg.height;
-
                 const circleAvatar = Bodies.circle(event.mouse.position.x, event.mouse.position.y, radius, {
                     restitution: 0.5,
-                    render: {
-                        sprite: {
-                            texture: randomImg.src,
-                            xScale: scaleX,
-                            yScale: scaleY
-                        }
-                    }
-                });
-                Composite.add(engine.world, circleAvatar);
+                    render: { sprite: { texture: randomImg.src, xScale: TARGET_SIZE / randomImg.width, yScale: TARGET_SIZE / randomImg.height } }
+                });[cite: 2]
+                Composite.add(engine.world, circleAvatar);[cite: 2]
             }
         });
-
-        let pressTimer, timers = [], currentTextNode = null, startPos = { x: 0, y: 0 };
-
+        
+        let pressTimer, timers = [], currentTextNode = null, startPos = { x: 0, y: 0 };[cite: 2]
         Events.on(mouseConstraint, 'mousedown', (event) => {
-            startPos = { x: event.mouse.position.x, y: event.mouse.position.y };
-            pressTimer = setTimeout(() => startSequence(), 1000);
+            startPos = { x: event.mouse.position.x, y: event.mouse.position.y };[cite: 2]
+            pressTimer = setTimeout(() => startSequence(), 1000);[cite: 2]
         });
-
         Events.on(mouseConstraint, 'mousemove', (event) => {
-            if (Math.abs(event.mouse.position.x - startPos.x) > 2 || Math.abs(event.mouse.position.y - startPos.y) > 2) cancelEverything();
+            if (Math.abs(event.mouse.position.x - startPos.x) > 2 || Math.abs(event.mouse.position.y - startPos.y) > 2) cancelEverything();[cite: 2]
         });
-
-        Events.on(mouseConstraint, 'mouseup', () => cancelEverything());
+        Events.on(mouseConstraint, 'mouseup', () => cancelEverything());[cite: 2]
 
         function startSequence() {
             const t1 = setTimeout(() => {
                 if (!currentTextNode) {
                     currentTextNode = document.createElement('div');
                     currentTextNode.className = 'floating-text';
-                    currentTextNode.innerText = '不要了…';
-                    document.body.appendChild(currentTextNode);
-                    requestAnimationFrame(() => currentTextNode.classList.add('show'));
+                    currentTextNode.innerText = '不要了…';[cite: 2]
+                    document.body.appendChild(currentTextNode);[cite: 2]
+                    requestAnimationFrame(() => currentTextNode.classList.add('show'));[cite: 2]
                 }
-            }, 120);
-
+            }, 120);[cite: 2]
             const t2 = setTimeout(() => {
-                clearWithAnimation();
-                if (currentTextNode) currentTextNode.classList.add('exit');
-                setTimeout(() => { if(currentTextNode) currentTextNode.remove(); currentTextNode = null; }, 800);
-            }, 3620);
-            timers.push(t1, t2);
+                clearWithAnimation();[cite: 2]
+                if (currentTextNode) currentTextNode.classList.add('exit');[cite: 2]
+                setTimeout(() => { if(currentTextNode) currentTextNode.remove(); currentTextNode = null; }, 800);[cite: 2]
+            }, 3620);[cite: 2]
+            timers.push(t1, t2);[cite: 2]
         }
 
         function cancelEverything() {
-            clearTimeout(pressTimer);
-            timers.forEach(t => clearTimeout(t));
-            timers = [];
+            clearTimeout(pressTimer); timers.forEach(t => clearTimeout(t)); timers = [];[cite: 2]
             if (currentTextNode) {
-                currentTextNode.style.left = '-100px';
-                currentTextNode.style.opacity = '0';
-                const temp = currentTextNode;
-                setTimeout(() => temp.remove(), 600);
-                currentTextNode = null;
+                currentTextNode.style.left = '-100px'; currentTextNode.style.opacity = '0';[cite: 2]
+                const temp = currentTextNode; setTimeout(() => temp.remove(), 600);[cite: 2]
+                currentTextNode = null;[cite: 2]
             }
         }
 
         function clearWithAnimation() {
             Composite.allBodies(engine.world).filter(b => !b.isStatic).forEach(body => {
-                body.collisionFilter.mask = 0;
-                Body.setAngularVelocity(body, (Math.random()-0.5)*0.2);
+                body.collisionFilter.mask = 0;[cite: 2]
+                Body.setAngularVelocity(body, (Math.random()-0.5)*0.2);[cite: 2]
                 let s = 1.0;
                 const anim = setInterval(() => {
                     s -= 0.05;
-                    if (s <= 0) { Composite.remove(engine.world, body); clearInterval(anim); }
-                    else { Body.scale(body, 0.9, 0.9); body.render.opacity = s; }
+                    if (s <= 0) { Composite.remove(engine.world, body); clearInterval(anim); }[cite: 2]
+                    else { Body.scale(body, 0.9, 0.9); body.render.opacity = s; }[cite: 2]
                 }, 16);
             });
         }
 
-        // --- AI 聊天逻辑修改部分 ---
-        const userInput = document.getElementById('user-input');
-        const aiResponse = document.getElementById('ai-response');
+        // --- AI 聊天与 Imagen 4 生图显示逻辑 ---
+        const userInput = document.getElementById('user-input');[cite: 2]
+        const aiResponse = document.getElementById('ai-response');[cite: 2]
 
-        // 新增：点击 AI 回复框时隐藏
         aiResponse.addEventListener('click', () => {
-            aiResponse.style.opacity = "0";
-            // 等动画结束后清空文字，防止干扰下次显示
-            setTimeout(() => { aiResponse.innerText = ""; }, 500);
+            aiResponse.style.opacity = "0";[cite: 2]
+            setTimeout(() => { aiResponse.innerText = ""; aiResponse.innerHTML = ""; }, 500);[cite: 2]
         });
-
+        
         userInput.addEventListener('keypress', async (e) => {
             if (e.key === 'Enter' && userInput.value.trim() !== "") {
-                const prompt = userInput.value;
-                userInput.value = "";
-                userInput.placeholder = "思考中...";
+                const prompt = userInput.value;[cite: 2]
+                userInput.value = "";[cite: 2]
+                userInput.placeholder = prompt.startsWith('/image') ? "Imagen 4 正在作画..." : "思考中...";[cite: 2]
                 
                 try {
-                    const targetUrl = `${window.location.origin}/chat?prompt=${encodeURIComponent(prompt)}`;
-                    const res = await fetch(targetUrl, { method: "GET", cache: "no-cache" });
-                    const data = await res.json();
+                    const targetUrl = `${window.location.origin}/chat?prompt=${encodeURIComponent(prompt)}`;[cite: 2]
+                    const res = await fetch(targetUrl, { method: "GET", cache: "no-cache" });[cite: 2]
+                    const data = await res.json();[cite: 2]
                     
-                    if (data.error) {
-                        const errorMsg = typeof data.error === 'object' ? (data.error.message || JSON.stringify(data.error)) : data.error;
-                        throw new Error(errorMsg);
+                    if (data.error) throw new Error(typeof data.error === 'object' ? data.error.message : data.error);[cite: 2]
+
+                    if (data.type === "image") {
+                        aiResponse.innerHTML = `<img src="${data.content}" alt="Generated Image" />`;
+                    } else {
+                        aiResponse.innerText = data.content;[cite: 2]
                     }
 
-                    if (!data.candidates || !data.candidates[0].content) {
-                        throw new Error("模型未返回有效内容");
-                    }
-
-                    const text = data.candidates[0].content.parts[0].text;
-                    aiResponse.innerText = text;
-                    aiResponse.style.opacity = "1";
-                    
-                    // 移除原来的 15 秒定时器，现在改为点击消失
+                    aiResponse.style.opacity = "1";[cite: 2]
                 } catch (err) {
-                    console.error("请求失败:", err);
-                    aiResponse.innerText = "状态: " + err.message;
-                    aiResponse.style.opacity = "1";
+                    aiResponse.innerText = "状态: " + err.message;[cite: 2]
+                    aiResponse.style.opacity = "1";[cite: 2]
                 }
-                userInput.placeholder = "和 Gemini 聊聊...";
+                userInput.placeholder = "和 Gemini 聊聊...";[cite: 2]
             }
         });
 
-        Render.run(render);
-        Runner.run(Runner.create(), engine);
-        window.addEventListener('resize', () => {
-            render.canvas.width = window.innerWidth;
-            render.canvas.height = window.innerHeight;
-        });
+        Render.run(render); Runner.run(Runner.create(), engine);[cite: 2]
+        window.addEventListener('resize', () => { render.canvas.width = window.innerWidth; render.canvas.height = window.innerHeight; });[cite: 2]
     </script>
 </body>
 </html>
