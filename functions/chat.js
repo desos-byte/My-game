@@ -6,12 +6,12 @@ export async function onRequestGet(context) {
   if (!prompt) return new Response(JSON.stringify({ error: "请输入内容" }), { status: 400 });[cite: 1]
 
   // ==========================================
-  // 1. 图像生成逻辑：使用 Imagen 4 Ultra
+  // 1. 图像生成逻辑：识别换成 -image
   // ==========================================
-  if (prompt.startsWith('/image')) {
-    const imagePrompt = prompt.replace(/^\/image\s*/i, '');
+  if (prompt.startsWith('-image')) {
+    const imagePrompt = prompt.replace(/^-image\s*/i, '');
     
-    // 升级为 2026 年最新的 Imagen 4 Ultra 接口
+    // 使用 2026 年最新的 Imagen 4 Ultra 接口
     const imagenApi = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4-ultra-generate:predict?key=${API_KEY}`;
 
     try {
@@ -33,7 +33,6 @@ export async function onRequestGet(context) {
       if (data.error) throw new Error(data.error.message);
       
       if (data.predictions && data.predictions.length > 0) {
-        // 提取 Base64 图像数据
         const base64Image = data.predictions[0].bytesBase64Encoded;
         return new Response(JSON.stringify({ 
           type: "image", 
