@@ -154,7 +154,7 @@
             });
         }
 
-        // --- AI 聊天与 Imagen 4 生图显示逻辑 ---
+        // --- AI 聊天与 Imagen 4 生图逻辑 ---
         const userInput = document.getElementById('user-input');[cite: 2]
         const aiResponse = document.getElementById('ai-response');[cite: 2]
 
@@ -167,7 +167,8 @@
             if (e.key === 'Enter' && userInput.value.trim() !== "") {
                 const prompt = userInput.value;[cite: 2]
                 userInput.value = "";[cite: 2]
-                userInput.placeholder = prompt.startsWith('/image') ? "Imagen 4 正在作画..." : "思考中...";[cite: 2]
+                // 识别改为 -image
+                userInput.placeholder = prompt.startsWith('-image') ? "Imagen 4 正在作画..." : "思考中...";[cite: 2]
                 
                 try {
                     const targetUrl = `${window.location.origin}/chat?prompt=${encodeURIComponent(prompt)}`;[cite: 2]
