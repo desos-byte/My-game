@@ -59,13 +59,20 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
         const { Engine, Render, Runner, Bodies, Composite, Mouse, MouseConstraint, Body, Events } = Matter;
-        const TEXTURE_SOURCES = ['https://files.catbox.moe/wq99z2.png', 'https://files.catbox.moe/c3jequ.png'];
+
+        // ==========================================
+        // 这里修改为你的 GitHub 仓库路径
+        // 假设你在仓库里建了 assets 文件夹，放了 1.png 和 2.png
+        // ==========================================
+        const TEXTURE_SOURCES = ['./assets/1.png', './assets/2.png']; 
+        
         const TARGET_SIZE = 85; 
 
         const loadedImages = [];
         TEXTURE_SOURCES.forEach(url => {
             const img = new Image(); img.src = url;
             img.onload = () => loadedImages.push(img);
+            img.onerror = () => console.error("图片加载失败，请检查路径:", url);
         });
         
         const engine = Engine.create();
@@ -166,8 +173,7 @@
             if (e.key === 'Enter' && userInput.value.trim() !== "") {
                 const prompt = userInput.value;
                 userInput.value = "";
-                // 检测 -image 触发 Placeholder 变化
-                userInput.placeholder = prompt.startsWith('-image') ? "Imagen 4 正在作画..." : "思考中...";
+                userInput.placeholder = prompt.startsWith('-image') ? "Imagen 正在作画..." : "思考中...";
                 
                 try {
                     const targetUrl = `${window.location.origin}/chat?prompt=${encodeURIComponent(prompt)}`;
