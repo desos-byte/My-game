@@ -51,7 +51,7 @@ export async function onRequestGet(context) {
             parts: [{ text: "主要使用中文，严禁输出任何 Markdown 符号。表现得更接近人类。" }]
           },
           contents: [{ parts: [{ text: cleanPrompt }] }],
-          generationConfig: { temperature: 1.0, maxOutputTokens: 2048 }
+          generationConfig: { temperature: 1.0, maxOutputTokens: 8192 }
         })
       });
 
